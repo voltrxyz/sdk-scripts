@@ -3,7 +3,9 @@ export * from "./env.js";
 export * from "./interop/web3-kit.js";
 export * from "./token/accounts.js";
 export * from "./tx/lut.js";
+export * from "./tx/multisig.js";
+export * from "./tx/priority-fee.js";
 export * from "./tx/processor.js";
 export * from "./tx/send.js";
+export * from "./tx/simulate.js";
 export * from "./vault/operations.js";
-
