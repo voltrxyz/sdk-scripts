@@ -39,7 +39,7 @@ Print a vault deposit transaction plan:
 
 ```bash
 pnpm cli -- \
-  --profile configs/examples/ranger-usd.mainnet.example.json \
+  --profile configs/examples/usdc.mainnet.example.json \
   --mode print \
   vault:deposit \
   --user-keypair /path/to/user.json \
@@ -50,7 +50,7 @@ Execute it:
 
 ```bash
 RPC_URL="https://your-rpc" pnpm cli -- \
-  --profile configs/examples/ranger-usd.mainnet.example.json \
+  --profile configs/examples/usdc.mainnet.example.json \
   --mode execute \
   vault:deposit \
   --user-keypair /path/to/user.json \
@@ -67,11 +67,11 @@ Profile shape:
 
 ```jsonc
 {
-  "name": "ranger-usd-mainnet",         // required, non-empty
+  "name": "usdc-mainnet-example",       // required, non-empty
   "cluster": "mainnet-beta",            // required: localnet | devnet | mainnet-beta
   "rpcUrl": "",                         // optional fallback RPC; CLI/env override below
   "vault": {
-    "name": "Ranger USD",               // optional display label
+    "name": "USDC",                     // optional display label
     "assetMintAddress": "...",          // required, base58
     "assetTokenProgram": "...",         // required, base58 (Token or Token-2022 program)
     "vaultAddress": "...",              // required by vault:* commands
@@ -95,8 +95,8 @@ Notes:
 To create a new profile, copy an example file into `configs/` (the workspace ignores nothing here by default — make sure it is not committed if it references real production addresses you don't want in git):
 
 ```bash
-cp configs/examples/ranger-usd.mainnet.example.json configs/my-vault.json
-# edit configs/my-vault.json to fill in vault.vaultAddress, lookup table, integration sections
+cp configs/examples/usdc.mainnet.example.json configs/my-vault.json
+# edit configs/my-vault.json: fill in vault.vaultAddress, optional LUT, integration sections
 ```
 
 ## Overrides
