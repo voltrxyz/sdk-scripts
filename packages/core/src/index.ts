@@ -1,4 +1,5 @@
 export * from "./types.js";
+export * from "./profile.js";
 export * from "./env.js";
 export * from "./interop/web3-kit.js";
 export * from "./token/accounts.js";
@@ -6,4 +7,3 @@ export * from "./tx/lut.js";
 export * from "./tx/processor.js";
 export * from "./tx/send.js";
 export * from "./vault/operations.js";
-

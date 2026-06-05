@@ -6,7 +6,7 @@
     "assetMintAddress": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     "assetTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
     "vaultAddress": "",
-    "useLookupTable": true,
+    "useLookupTable": false,
     "lookupTableAddress": ""
   },
   "integrations": {
@@ -25,4 +25,3 @@
     }
   }
 }
-

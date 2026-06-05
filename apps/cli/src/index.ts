@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 import { Command, Option } from "commander";
 import {
-  asAddress,
   buildDepositVaultOperation,
   createScriptContext,
   loadProfile,
   loadSignerFromFile,
-  optionalAddress,
   parseBigintAmount,
   processOperation,
+  ProfileFieldError,
+  ProfileValidationError,
+  requireAssetMint,
+  requireAssetTokenProgram,
+  requireVaultAddress,
+  resolveLookupTableAddresses,
   type TxMode,
 } from "@voltr/scripts-core";
 
@@ -31,33 +35,35 @@ program
   .requiredOption("--user-keypair <path>", "user keypair JSON path")
   .requiredOption("--amount <raw>", "raw asset amount in smallest units")
   .action(async (options: { userKeypair: string; amount: string }) => {
+    const command = "vault:deposit";
     const globals = program.opts<{
       profile: string;
       rpcUrl?: string;
       mode: TxMode;
     }>();
+
+    // Validate the profile (and required fields for this command) before
+    // touching the network, loading keys, or building any instructions.
     const profile = await loadProfile(globals.profile);
+    const vault = requireVaultAddress(profile, { command });
+    const assetMint = requireAssetMint(profile);
+    const assetTokenProgram = requireAssetTokenProgram(profile);
+    const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+      command,
+    });
+    const amount = parseBigintAmount(options.amount);
+
     const ctx = createScriptContext(profile, globals.rpcUrl);
     const user = await loadSignerFromFile(options.userKeypair);
-    const lookupTableAddress = optionalAddress(profile.vault.lookupTableAddress);
 
     const operation = await buildDepositVaultOperation({
       rpc: ctx.rpc,
       user,
-      vault: asAddress(profile.vault.vaultAddress, "vault.vaultAddress"),
-      assetMint: asAddress(
-        profile.vault.assetMintAddress,
-        "vault.assetMintAddress"
-      ),
-      assetTokenProgram: asAddress(
-        profile.vault.assetTokenProgram,
-        "vault.assetTokenProgram"
-      ),
-      amount: parseBigintAmount(options.amount),
-      lookupTableAddresses:
-        profile.vault.useLookupTable && lookupTableAddress
-          ? [lookupTableAddress]
-          : [],
+      vault,
+      assetMint,
+      assetTokenProgram,
+      amount,
+      lookupTableAddresses,
     });
 
     await processOperation({
@@ -84,7 +90,13 @@ program
   });
 
 program.parseAsync().catch((error) => {
+  if (
+    error instanceof ProfileValidationError ||
+    error instanceof ProfileFieldError
+  ) {
+    console.error(error.message);
+    process.exit(1);
+  }
   console.error(error);
   process.exit(1);
 });
-

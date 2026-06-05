@@ -8,26 +8,14 @@ import {
   type Address,
   type KeyPairSigner,
 } from "@solana/kit";
-import type { ScriptContext, ScriptProfile } from "./types.js";
+import type { ScriptProfile } from "./profile.js";
+import type { ScriptContext } from "./types.js";
 
-export async function loadProfile(profilePath: string): Promise<ScriptProfile> {
-  const resolvedPath = resolve(profilePath);
-  const raw = await readFile(resolvedPath, "utf8");
-  const profile = JSON.parse(raw) as ScriptProfile;
-
-  if (!profile.name) {
-    throw new Error(`Profile ${resolvedPath} is missing "name"`);
-  }
-  if (!profile.cluster) {
-    throw new Error(`Profile ${resolvedPath} is missing "cluster"`);
-  }
-  if (!profile.vault) {
-    throw new Error(`Profile ${resolvedPath} is missing "vault"`);
-  }
-
-  return profile;
-}
-
+// RPC precedence (highest to lowest):
+//   1. --rpc-url CLI flag (rpcUrlOverride)
+//   2. RPC_URL env
+//   3. HELIUS_RPC_URL env
+//   4. profile.rpcUrl
 export function createScriptContext(
   profile: ScriptProfile,
   rpcUrlOverride?: string
@@ -40,7 +28,7 @@ export function createScriptContext(
 
   if (!rpcUrl) {
     throw new Error(
-      "RPC URL is required. Set RPC_URL, HELIUS_RPC_URL, profile.rpcUrl, or pass --rpc-url."
+      "RPC URL is required. Pass --rpc-url, or set RPC_URL or HELIUS_RPC_URL, or add rpcUrl to the profile."
     );
   }
 
@@ -86,4 +74,3 @@ export function parseBigintAmount(value: string | number | bigint): bigint {
   }
   return BigInt(value);
 }
-
