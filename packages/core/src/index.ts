@@ -1,4 +1,6 @@
+export { address, type Address } from "@solana/kit";
 export * from "./types.js";
+export * from "./profile.js";
 export * from "./env.js";
 export * from "./interop/web3-kit.js";
 export * from "./token/accounts.js";

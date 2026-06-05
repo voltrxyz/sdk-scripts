@@ -50,6 +50,9 @@ importers:
       dotenv:
         specifier: ^16.5.0
         version: 16.6.1
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
 
   packages/kamino:
     dependencies:
@@ -700,6 +703,9 @@ packages:
       utf-8-validate:
         optional: true
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
 snapshots:
 
   '@esbuild/aix-ppc64@0.28.0':
@@ -1331,3 +1337,5 @@ snapshots:
   undici-types@8.3.0: {}
 
   ws@8.21.0: {}
+
+  zod@3.25.76: {}
