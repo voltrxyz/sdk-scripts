@@ -1,0 +1,19 @@
+{
+  "name": "@voltr/scripts-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "voltr-scripts": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@voltr/scripts-core": "workspace:*",
+    "commander": "^12.1.0"
+  }
+}
+

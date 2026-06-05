@@ -1,0 +1,28 @@
+{
+  "name": "ranger-usd-mainnet",
+  "cluster": "mainnet-beta",
+  "vault": {
+    "name": "Ranger USD",
+    "assetMintAddress": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "assetTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "vaultAddress": "",
+    "useLookupTable": true,
+    "lookupTableAddress": ""
+  },
+  "integrations": {
+    "kamino": {
+      "reserveAddress": "",
+      "kvaultAddress": ""
+    },
+    "spot": {
+      "foreignMintAddress": "",
+      "foreignTokenProgram": "",
+      "assetOracleAddress": "",
+      "foreignOracleAddress": ""
+    },
+    "trustful": {
+      "strategySeedString": ""
+    }
+  }
+}
+

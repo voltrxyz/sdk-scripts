@@ -1,0 +1,28 @@
+{
+  "name": "@voltr/scripts-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@solana-program/address-lookup-table": "^0.11.0",
+    "@solana-program/compute-budget": "^0.15.0",
+    "@solana-program/system": "^0.12.0",
+    "@solana-program/token": "^0.13.0",
+    "@solana/kit": "^6.8.0",
+    "@voltr/vault-sdk": "^2.0.0",
+    "dotenv": "^16.5.0"
+  }
+}
+
