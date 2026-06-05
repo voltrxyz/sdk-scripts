@@ -1,0 +1,294 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { address, type Address } from "@solana/kit";
+import { z, type ZodIssue } from "zod";
+
+const CLUSTERS = ["localnet", "devnet", "mainnet-beta"] as const;
+export type Cluster = (typeof CLUSTERS)[number];
+
+const isValidBase58Address = (value: string): boolean => {
+  try {
+    address(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const AddressSchema = z
+  .string()
+  .refine(isValidBase58Address, {
+    message: "must be a valid base58 Solana address",
+  });
+
+// Treat empty / whitespace-only strings as "not provided" so example templates
+// with placeholder "" values still parse. Per-command accessors enforce
+// presence when the field is actually required.
+const OptionalAddressSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  AddressSchema.optional()
+);
+
+const NonEmptyString = z
+  .string()
+  .min(1, { message: "must be a non-empty string" });
+
+const OptionalNonEmptyString = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  NonEmptyString.optional()
+);
+
+export const VaultProfileSchema = z
+  .object({
+    name: OptionalNonEmptyString,
+    assetMintAddress: AddressSchema,
+    assetTokenProgram: AddressSchema,
+    vaultAddress: OptionalAddressSchema,
+    useLookupTable: z.boolean().optional(),
+    lookupTableAddress: OptionalAddressSchema,
+  })
+  .strict();
+
+export const KaminoIntegrationSchema = z
+  .object({
+    reserveAddress: OptionalAddressSchema,
+    kvaultAddress: OptionalAddressSchema,
+  })
+  .strict();
+
+export const SpotIntegrationSchema = z
+  .object({
+    foreignMintAddress: OptionalAddressSchema,
+    foreignTokenProgram: OptionalAddressSchema,
+    assetOracleAddress: OptionalAddressSchema,
+    foreignOracleAddress: OptionalAddressSchema,
+  })
+  .strict();
+
+export const TrustfulIntegrationSchema = z
+  .object({
+    strategySeedString: OptionalNonEmptyString,
+  })
+  .strict();
+
+export const IntegrationsSchema = z
+  .object({
+    kamino: KaminoIntegrationSchema.optional(),
+    spot: SpotIntegrationSchema.optional(),
+    trustful: TrustfulIntegrationSchema.optional(),
+  })
+  .strict();
+
+export const ScriptProfileSchema = z
+  .object({
+    name: NonEmptyString,
+    cluster: z.enum(CLUSTERS),
+    rpcUrl: OptionalNonEmptyString,
+    vault: VaultProfileSchema,
+    integrations: IntegrationsSchema.optional(),
+  })
+  .strict();
+
+export type VaultProfile = z.infer<typeof VaultProfileSchema>;
+export type ScriptProfile = z.infer<typeof ScriptProfileSchema>;
+export type KaminoIntegration = z.infer<typeof KaminoIntegrationSchema>;
+export type SpotIntegration = z.infer<typeof SpotIntegrationSchema>;
+export type TrustfulIntegration = z.infer<typeof TrustfulIntegrationSchema>;
+
+export class ProfileValidationError extends Error {
+  constructor(
+    public readonly profilePath: string,
+    public readonly issues: ZodIssue[]
+  ) {
+    const formatted = issues
+      .map((issue) => {
+        const path = issue.path.length ? issue.path.join(".") : "(root)";
+        return `  - ${path}: ${issue.message}`;
+      })
+      .join("\n");
+    super(`Profile validation failed for ${profilePath}:\n${formatted}`);
+    this.name = "ProfileValidationError";
+  }
+}
+
+export class ProfileFieldError extends Error {
+  constructor(
+    public readonly profileName: string,
+    public readonly field: string,
+    options?: { command?: string; hint?: string }
+  ) {
+    const command = options?.command ? ` for command "${options.command}"` : "";
+    const hint = options?.hint ? `\nHint: ${options.hint}` : "";
+    super(
+      `Profile "${profileName}" is missing required field "${field}"${command}.${hint}`
+    );
+    this.name = "ProfileFieldError";
+  }
+}
+
+export async function loadProfile(profilePath: string): Promise<ScriptProfile> {
+  const resolvedPath = resolve(profilePath);
+  let raw: string;
+  try {
+    raw = await readFile(resolvedPath, "utf8");
+  } catch (error) {
+    throw new Error(
+      `Failed to read profile at ${resolvedPath}: ${(error as Error).message}`
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `Profile ${resolvedPath} is not valid JSON: ${(error as Error).message}`
+    );
+  }
+
+  const result = ScriptProfileSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ProfileValidationError(resolvedPath, result.error.issues);
+  }
+
+  return result.data;
+}
+
+// Per-command accessors. Each one returns typed Address values and throws a
+// ProfileFieldError that names the missing field (and the command requesting
+// it) if the profile does not satisfy the command's requirements.
+
+export interface AccessOptions {
+  command?: string;
+}
+
+export function requireAssetMint(profile: ScriptProfile): Address {
+  return address(profile.vault.assetMintAddress);
+}
+
+export function requireAssetTokenProgram(profile: ScriptProfile): Address {
+  return address(profile.vault.assetTokenProgram);
+}
+
+export function requireVaultAddress(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): Address {
+  if (!profile.vault.vaultAddress) {
+    throw new ProfileFieldError(profile.name, "vault.vaultAddress", options);
+  }
+  return address(profile.vault.vaultAddress);
+}
+
+export function requireLookupTableAddress(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): Address {
+  if (!profile.vault.lookupTableAddress) {
+    throw new ProfileFieldError(profile.name, "vault.lookupTableAddress", {
+      ...options,
+      hint:
+        "Set vault.lookupTableAddress in the profile, or disable vault.useLookupTable.",
+    });
+  }
+  return address(profile.vault.lookupTableAddress);
+}
+
+export function resolveLookupTableAddresses(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): Address[] {
+  if (!profile.vault.useLookupTable) {
+    return [];
+  }
+  return [requireLookupTableAddress(profile, options)];
+}
+
+export interface KaminoIntegrationFields {
+  reserve: Address;
+  kvault: Address;
+}
+
+export function requireKaminoIntegration(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): KaminoIntegrationFields {
+  const section = profile.integrations?.kamino;
+  if (!section) {
+    throw new ProfileFieldError(profile.name, "integrations.kamino", options);
+  }
+  if (!section.reserveAddress) {
+    throw new ProfileFieldError(
+      profile.name,
+      "integrations.kamino.reserveAddress",
+      options
+    );
+  }
+  if (!section.kvaultAddress) {
+    throw new ProfileFieldError(
+      profile.name,
+      "integrations.kamino.kvaultAddress",
+      options
+    );
+  }
+  return {
+    reserve: address(section.reserveAddress),
+    kvault: address(section.kvaultAddress),
+  };
+}
+
+export interface SpotIntegrationFields {
+  foreignMint: Address;
+  foreignTokenProgram: Address;
+  assetOracle: Address;
+  foreignOracle: Address;
+}
+
+export function requireSpotIntegration(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): SpotIntegrationFields {
+  const section = profile.integrations?.spot;
+  if (!section) {
+    throw new ProfileFieldError(profile.name, "integrations.spot", options);
+  }
+  const required: Array<[keyof SpotIntegration, string]> = [
+    ["foreignMintAddress", "integrations.spot.foreignMintAddress"],
+    ["foreignTokenProgram", "integrations.spot.foreignTokenProgram"],
+    ["assetOracleAddress", "integrations.spot.assetOracleAddress"],
+    ["foreignOracleAddress", "integrations.spot.foreignOracleAddress"],
+  ];
+  for (const [key, path] of required) {
+    if (!section[key]) {
+      throw new ProfileFieldError(profile.name, path, options);
+    }
+  }
+  return {
+    foreignMint: address(section.foreignMintAddress as string),
+    foreignTokenProgram: address(section.foreignTokenProgram as string),
+    assetOracle: address(section.assetOracleAddress as string),
+    foreignOracle: address(section.foreignOracleAddress as string),
+  };
+}
+
+export interface TrustfulIntegrationFields {
+  strategySeedString: string;
+}
+
+export function requireTrustfulIntegration(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): TrustfulIntegrationFields {
+  const section = profile.integrations?.trustful;
+  if (!section) {
+    throw new ProfileFieldError(profile.name, "integrations.trustful", options);
+  }
+  if (!section.strategySeedString) {
+    throw new ProfileFieldError(
+      profile.name,
+      "integrations.trustful.strategySeedString",
+      options
+    );
+  }
+  return { strategySeedString: section.strategySeedString };
+}
