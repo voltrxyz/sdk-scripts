@@ -15,21 +15,25 @@ import {
   type Instruction,
   type KeyPairSigner,
 } from "@solana/kit";
-import type { BuiltOperation, SolanaRpc } from "../types.js";
+import type { BuiltOperation, ScriptContext } from "../types.js";
 import { setupTokenAccount } from "../token/accounts.js";
 
 const NATIVE_MINT =
   "So11111111111111111111111111111111111111112" as Address;
 
-export async function buildDepositVaultOperation(args: {
-  rpc: SolanaRpc;
+export interface DepositVaultArgs {
   user: KeyPairSigner;
   vault: Address;
   assetMint: Address;
   assetTokenProgram: Address;
   amount: bigint;
   lookupTableAddresses?: Address[];
-}): Promise<BuiltOperation> {
+}
+
+export async function buildDepositVaultOperation(
+  ctx: ScriptContext,
+  args: DepositVaultArgs
+): Promise<BuiltOperation> {
   const instructions: Instruction[] = [];
   const [userAssetAta] = await findAssociatedTokenPda({
     owner: args.user.address,
@@ -58,7 +62,7 @@ export async function buildDepositVaultOperation(args: {
 
   const [vaultLpMint] = await findVaultLpMintPda({ vault: args.vault });
   await setupTokenAccount({
-    rpc: args.rpc,
+    rpc: ctx.rpc,
     payer: args.user,
     mint: vaultLpMint,
     owner: args.user.address,

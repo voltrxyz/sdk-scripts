@@ -56,8 +56,7 @@ program
     const ctx = createScriptContext(profile, globals.rpcUrl);
     const user = await loadSignerFromFile(options.userKeypair);
 
-    const operation = await buildDepositVaultOperation({
-      rpc: ctx.rpc,
+    const operation = await buildDepositVaultOperation(ctx, {
       user,
       vault,
       assetMint,
