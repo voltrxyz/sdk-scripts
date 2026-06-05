@@ -41,8 +41,7 @@ program
     const user = await loadSignerFromFile(options.userKeypair);
     const lookupTableAddress = optionalAddress(profile.vault.lookupTableAddress);
 
-    const operation = await buildDepositVaultOperation({
-      rpc: ctx.rpc,
+    const operation = await buildDepositVaultOperation(ctx, {
       user,
       vault: asAddress(profile.vault.vaultAddress, "vault.vaultAddress"),
       assetMint: asAddress(

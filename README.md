@@ -2,14 +2,16 @@
 
 Workspace for shared Voltr vault scripts plus thin adapter-specific integrations.
 
-This repo is intended to replace the current fork-per-integration shape:
+This repo replaces the fork-per-integration shape used by:
 
-- `voltr-base-scripts`
-- `voltr-trustful-scripts`
-- `voltr-kamino-scripts`
-- `voltr-spot-scripts`
+- `/Users/shayn/Desktop/voltr/voltr-base-scripts`
+- `/Users/shayn/Desktop/voltr/voltr-trustful-scripts`
+- `/Users/shayn/Desktop/voltr/voltr-kamino-scripts`
+- `/Users/shayn/Desktop/voltr/voltr-spot-scripts`
 
-The goal is to keep common vault, signer, token-account, LUT, and transaction behavior in one package, while each integration only owns its protocol-specific account derivation and instruction builders.
+Those repos remain on disk as **migration references only** — do not edit them for ongoing operations.
+
+Common vault, signer, token-account, LUT, and transaction behavior lives in `packages/core`. Each adapter package owns only its protocol-specific account derivation and instruction builders.
 
 ## Layout
 
@@ -24,10 +26,16 @@ packages/
 configs/
   examples/            # JSON profile examples
 docs/
-  migration-plan.md    # Suggested migration order from the old repos
+  architecture.md      # Package responsibilities + operation-builder contract
+  migration-plan.md    # Migration order from the old repos
 ```
 
-## First Commands
+## Documentation
+
+- **[docs/architecture.md](./docs/architecture.md)** — read this first. Defines package responsibilities, the operation-builder contract, command naming, query vs transaction commands, web3.js isolation, where operational values live, and the step-by-step recipe for adding a new operation.
+- **[docs/migration-plan.md](./docs/migration-plan.md)** — which legacy scripts to port, in what order.
+
+## First commands
 
 Install dependencies:
 
@@ -57,12 +65,13 @@ RPC_URL="https://your-rpc" pnpm cli -- \
   --amount 1000000
 ```
 
-## Design Rules
+## Design rules (summary)
 
-- Operation builders return instructions; they do not read files, parse CLI flags, or send transactions.
-- CLI commands parse user input and call operation builders.
-- Profiles are JSON data, not TypeScript source edits.
-- `packages/core` owns signer/RPC/LUT/send behavior.
-- Adapter packages own only adapter-specific account derivation and remaining-account ordering.
-- New execution modes such as `simulate` and `multisig` should be added once in `packages/core/src/tx/processor.ts`.
+The full rules live in [docs/architecture.md](./docs/architecture.md). The short version:
 
+- Operation builders return a `BuiltOperation` (`label`, `instructions`, optional `lookupTableAddresses`, optional `computeUnitLimit`). They do not read files, parse CLI flags, send transactions, or read `ctx.profile`.
+- CLI commands parse argv, load signers and profiles, coerce values, call the builder, and hand the result to `processOperation`.
+- Routine operational values (vault address, asset mint, LUTs, strategy seeds) live in JSON profiles under `configs/`. Per-call values (amounts, signer paths, slippage) come from CLI flags. TypeScript source files are not edited to change runtime values.
+- `packages/core` owns signer/RPC/LUT/send behavior and must not depend on `@solana/web3.js`. Adapter packages that depend on legacy SDKs convert at the boundary using `packages/core/src/interop/web3-kit.ts`; no web3.js type escapes a builder.
+- New execution modes (`simulate`, `multisig`) are added once in `packages/core/src/tx/processor.ts`, not per adapter.
+- Adapter packages do not import each other; Kamino, Spot, and Trustful migrations are independent workstreams.
