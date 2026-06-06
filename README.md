@@ -18,6 +18,10 @@ Common vault, signer, token-account, LUT, and transaction behavior lives in `pac
 ```text
 apps/
   cli/                 # User-facing command runner
+    src/
+      index.ts         # thin entry: wires global options + command groups
+      lib/             # globals, role signers, output, error helpers
+      commands/        # one module per command group (vault, kamino, …)
 packages/
   core/                # Shared env, signer, tx, LUT, token, vault helpers
   kamino/              # Kamino-specific operation builders
@@ -34,6 +38,7 @@ docs/
 
 - **[docs/architecture.md](./docs/architecture.md)** — read this first. Defines package responsibilities, the operation-builder contract, command naming, query vs transaction commands, web3.js isolation, where operational values live, and the step-by-step recipe for adding a new operation.
 - **[docs/migration-plan.md](./docs/migration-plan.md)** — which legacy scripts to port, in what order.
+- **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, and how to add adapter builder tests.
 - **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, and how to add adapter builder tests.
 
 ## First commands
@@ -65,6 +70,78 @@ RPC_URL="https://your-rpc" pnpm cli -- \
   --user-keypair /path/to/user.json \
   --amount 1000000
 ```
+
+> When invoked as `pnpm cli -- <args>`, the leading `--` separates pnpm's own
+> arguments from the CLI's. The CLI strips it automatically, so the flags after
+> it (`--profile`, `--mode`, …) are parsed normally.
+
+## Commands
+
+Discover everything from the CLI itself:
+
+```bash
+pnpm cli -- --help                 # global options + all command groups
+pnpm cli -- vault:deposit --help   # flags for a single command
+```
+
+Commands are grouped by `<group>:*` prefixes. Every command takes the
+[global options](#global-options) (`--profile`, `--rpc-url`, `--mode`, priority
+fee, …); the per-command flags below are the values that are not read from the
+profile.
+
+| Group        | What it covers                          | Example command |
+| ------------ | --------------------------------------- | --------------- |
+| `vault:*`    | shared Voltr vault operations           | `vault:deposit` |
+| `kamino:*`   | Kamino market / kvault strategies       | `kamino:market:deposit` |
+| `spot:*`     | Spot / Earn strategies                  | `spot:spot:buy` |
+| `trustful:*` | Trustful arbitrary / curve strategies   | `trustful:curve:borrow` |
+| `check`      | validate a profile (maintenance)        | `check` |
+
+One example per group (all default to `--mode print`, so they build a plan
+without sending anything):
+
+```bash
+# vault: deposit the profile asset into the vault
+pnpm cli -- --profile configs/my-vault.json \
+  vault:deposit --amount 1000000
+
+# kamino: deposit into a Kamino lending market
+pnpm cli -- --profile configs/my-vault.json \
+  kamino:market:deposit --amount 1000000
+
+# spot: buy the foreign asset via a spot swap
+pnpm cli -- --profile configs/my-vault.json \
+  spot:spot:buy --amount 1000000 --slippage-bps 50
+
+# trustful: borrow against a curve strategy
+pnpm cli -- --profile configs/my-vault.json \
+  trustful:curve:borrow --amount 1000000
+
+# check: validate a profile and print a configuration summary (no network)
+pnpm cli -- --profile configs/my-vault.json check
+```
+
+The `kamino:*` commands are wired into the framework but their operation
+builders are **placeholders** until the Kamino migration lands. They validate
+flags and profile fields, then fail with a clear "not migrated yet" message
+pointing at the legacy script to port. Spot and Trustful command builders have
+been migrated.
+
+### Global options
+
+| Option | Purpose |
+| ------ | ------- |
+| `--profile <path>` | JSON profile to load (required). |
+| `--rpc-url <url>` | RPC override; see [RPC URL](#rpc-url) precedence. |
+| `--mode <mode>` | `print` (default), `simulate`, `multisig`, or `execute`. |
+| `--multisig-address <pubkey>` | Vault PDA that signs on-chain; required for `--mode multisig`. |
+| `--priority-fee <kind>` | `helius` (default), `rpc`, `fixed`, or `none`. |
+| `--priority-fee-micro-lamports <n>` | microLamports for `--priority-fee fixed` (or a fallback). |
+| `--compute-unit-limit <n>` | Override the estimated compute-unit limit. |
+
+Transaction commands honor `--mode`; `check` ignores it (it never builds a
+transaction). See [docs/architecture.md](./docs/architecture.md) for how
+`--mode` is dispatched by `processOperation`.
 
 ## Checks before opening a PR
 
@@ -137,15 +214,30 @@ If none of those provide a URL, the CLI exits with an error before doing any wor
 
 ### Keypairs
 
-Each command takes an explicit `--*-keypair <path>` flag (for example `--user-keypair`). Paths point to standard Solana JSON keypair files. Environment variables like `USER_KEYPAIR` may be set in `.env` to populate shell-level shorthand:
+Commands sign as one of three roles. Each role resolves its keypair path from a
+flag, falling back to an environment variable (set them in `.env`):
+
+| Role      | Flag                  | Env var           |
+| --------- | --------------------- | ----------------- |
+| `admin`   | `--admin-keypair`     | `ADMIN_KEYPAIR`   |
+| `manager` | `--manager-keypair`   | `MANAGER_KEYPAIR` |
+| `user`    | `--user-keypair`      | `USER_KEYPAIR`    |
+
+Paths point to standard Solana JSON keypair files. The flag wins when both are
+present; if neither is set, the command fails before doing any work with a
+message naming both the flag and the env var. No keypair material lives in
+profiles.
 
 ```bash
+# Explicit flag:
+RPC_URL="https://your-rpc" pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:deposit --user-keypair /path/to/user.json --amount 1000000
+
+# Or via env var, no flag needed:
 RPC_URL="https://your-rpc" USER_KEYPAIR=/path/to/user.json pnpm cli -- \
-  --profile configs/my-vault.json \
-  --mode execute \
-  vault:deposit \
-  --user-keypair "$USER_KEYPAIR" \
-  --amount 1000000
+  --profile configs/my-vault.json --mode execute \
+  vault:deposit --amount 1000000
 ```
 
 ## Design rules (summary)

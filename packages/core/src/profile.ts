@@ -209,10 +209,13 @@ export interface KaminoIntegrationFields {
   kvault: Address;
 }
 
-export function requireKaminoIntegration(
+// Kamino's market and kvault strategies use different addresses, so each is
+// requirable on its own. A market-only profile must not be rejected for a
+// missing kvault address (and vice versa).
+export function requireKaminoReserve(
   profile: ScriptProfile,
   options?: AccessOptions
-): KaminoIntegrationFields {
+): Address {
   const section = profile.integrations?.kamino;
   if (!section) {
     throw new ProfileFieldError(profile.name, "integrations.kamino", options);
@@ -224,6 +227,17 @@ export function requireKaminoIntegration(
       options
     );
   }
+  return address(section.reserveAddress);
+}
+
+export function requireKaminoKvault(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): Address {
+  const section = profile.integrations?.kamino;
+  if (!section) {
+    throw new ProfileFieldError(profile.name, "integrations.kamino", options);
+  }
   if (!section.kvaultAddress) {
     throw new ProfileFieldError(
       profile.name,
@@ -231,9 +245,17 @@ export function requireKaminoIntegration(
       options
     );
   }
+  return address(section.kvaultAddress);
+}
+
+// Convenience accessor for operations that genuinely need both addresses.
+export function requireKaminoIntegration(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): KaminoIntegrationFields {
   return {
-    reserve: address(section.reserveAddress),
-    kvault: address(section.kvaultAddress),
+    reserve: requireKaminoReserve(profile, options),
+    kvault: requireKaminoKvault(profile, options),
   };
 }
 

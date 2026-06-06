@@ -64,20 +64,23 @@ test("--help lists the available commands", async () => {
   const text = output();
   assert.match(text, /Usage: voltr-scripts/);
   assert.match(text, /vault:deposit/);
-  assert.match(text, /next/);
+  assert.match(text, /kamino:market:deposit/);
+  assert.match(text, /spot:spot:buy/);
+  assert.match(text, /trustful:curve:borrow/);
+  assert.match(text, /check/);
 });
 
 test("rejects an invalid --mode choice", async () => {
   const { program } = harness();
   await assert.rejects(() =>
-    parse(program, ["--profile", "p.json", "--mode", "bogus", "next"])
+    parse(program, ["--profile", "p.json", "--mode", "bogus", "check"])
   );
 });
 
 test("rejects an invalid --priority-fee choice", async () => {
   const { program } = harness();
   await assert.rejects(() =>
-    parse(program, ["--profile", "p.json", "--priority-fee", "bogus", "next"])
+    parse(program, ["--profile", "p.json", "--priority-fee", "bogus", "check"])
   );
 });
 
@@ -100,6 +103,7 @@ test("vault:deposit surfaces a missing profile field before any network/keypair 
   const profile = JSON.stringify({
     name: "cli-test",
     cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
     vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
   });
 

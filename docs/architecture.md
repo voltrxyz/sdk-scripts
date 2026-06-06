@@ -74,7 +74,15 @@ The only place that:
 - prints output and sets exit codes;
 - hands a `BuiltOperation` to `processOperation`.
 
-The CLI must stay thin. Each command is "parse flags → coerce values → call builder → hand to processor". If a command grows beyond a screen, split it into `apps/cli/src/commands/<group>.ts`.
+The CLI must stay thin. Each command is "parse flags → coerce values → call builder → hand to processor". Concretely:
+
+- `apps/cli/src/index.ts` only builds the root program, attaches global options, and calls each group's `register<Group>Commands(program)`. Keep it free of command bodies.
+- Commands live one file per group under `apps/cli/src/commands/<group>.ts`, each exporting a `register<Group>Commands(program)` function. Adding a group is an import + one register call in `index.ts`.
+- Shared CLI helpers live under `apps/cli/src/lib/`:
+  - `globals.ts` — global option definitions, `loadCommandContext(program)` (read globals → `loadProfile` → `createScriptContext`), and `resolveProcessorOptions(globals)`.
+  - `signers.ts` — `loadRoleSigner(role, flagValue)` resolves an `admin` / `manager` / `user` keypair from the `--<role>-keypair` flag or the `<ROLE>_KEYPAIR` env var.
+  - `output.ts` — formatting helpers for non-transaction output (summaries, queries).
+  - `errors.ts` — `CliError` (user-facing, no stack trace) and the top-level `reportError` handler.
 
 ## Operation-builder contract
 
@@ -214,44 +222,58 @@ Default to `@solana/kit` and `@solana-program/*` throughout. Some upstream SDKs 
    - Compose instructions; isolate any web3.js inside.
    - Set `label` to the eventual CLI command name (e.g. `"kamino:market:deposit"`).
 4. **Re-export from the package's `src/index.ts`.**
-5. **Add the CLI command** in `apps/cli/src/index.ts` (split into `apps/cli/src/commands/<group>.ts` if a file grows past a screen):
-   - Use commander to declare flags. One required flag per builder arg that has no profile source.
-   - Use core helpers (`asAddress`, `optionalAddress`, `parseBigintAmount`, `loadSignerFromFile`) for coercion.
+5. **Add the CLI command** to the group's module, `apps/cli/src/commands/<group>.ts`, inside its `register<Group>Commands(program)` function (a new group means a new module + one `register` call in `index.ts`):
+   - Use commander to declare flags. One flag per builder arg that has no profile source. Make `--amount` and other per-call values `requiredOption`; make role keypairs a plain `option` (presence is enforced by `loadRoleSigner`, so the env-var fallback works).
+   - Load the profile and context with `loadCommandContext(program)`; pull profile values with the `require*` accessors; coerce flags with core helpers (`asAddress`, `parseBigintAmount`); load signers with `loadRoleSigner(role, flag)`.
+   - Resolve `resolveProcessorOptions(globals)` before loading keypairs so an invalid `--mode`/priority-fee invocation fails fast.
    - Call the builder with `(ctx, args)`.
-   - Hand the result to `processOperation({ ctx, payer, operation, mode })`.
+   - Hand the result to `processOperation({ ctx, payer, operation, mode, options })`.
 6. **Update profile schema if needed.** Add the new field under `integrations.<adapter>` in `configs/examples/*.json` and extend `ScriptProfile` in `packages/core/src/types.ts`.
 7. **For queries**, skip the processor entirely — print `JSON.stringify(await query<X>(ctx, args), null, 2)` from the CLI command.
-8. **Add a builder test.** Each adapter ships a stub smoke test next to its builder (e.g. `packages/kamino/src/operations/deposit-market.test.ts`) that currently asserts "not migrated yet". Replace it with an output-shape check using `createFakeScriptContext` + `assertBuiltOperationShape` from `@voltr/scripts-core/testing`. Tests run offline (no RPC, no keypairs) and are auto-discovered by `pnpm test`. See [testing.md](./testing.md).
+8. **Add a builder test.** Each adapter builder should have an offline smoke test next to it. For placeholders, assert the stub rejects clearly; for implemented builders, assert the output shape using `createFakeScriptContext` + `assertBuiltOperationShape` from `@voltr/scripts-core/testing`. Tests run offline (no RPC, no keypairs) and are auto-discovered by `pnpm test`. See [testing.md](./testing.md).
 
 ### Worked example (transaction)
 
 ```ts
-// apps/cli/src/index.ts
-program
-  .command("kamino:market:deposit")
-  .description("Deposit vault assets into a Kamino lending market")
-  .requiredOption("--manager-keypair <path>", "manager keypair JSON path")
-  .requiredOption("--amount <raw>", "raw asset amount in smallest units")
-  .action(async (options) => {
-    const globals = program.opts<{ profile: string; rpcUrl?: string; mode: TxMode }>();
-    const profile = await loadProfile(globals.profile);
-    const ctx = createScriptContext(profile, globals.rpcUrl);
-    const manager = await loadSignerFromFile(options.managerKeypair);
+// apps/cli/src/commands/kamino.ts
+export function registerKaminoCommands(program: Command): void {
+  program
+    .command("kamino:market:deposit")
+    .description("Deposit vault assets into a Kamino lending market")
+    .option("--manager-keypair <path>", "manager keypair JSON path (or MANAGER_KEYPAIR env)")
+    .requiredOption("--amount <raw>", "raw asset amount in smallest units")
+    .action(async (options: { managerKeypair?: string; amount: string }) => {
+      const command = "kamino:market:deposit";
 
-    const operation = await buildKaminoMarketDepositOperation(ctx, {
-      manager,
-      vault: asAddress(profile.vault.vaultAddress, "vault.vaultAddress"),
-      assetMint: asAddress(profile.vault.assetMintAddress, "vault.assetMintAddress"),
-      assetTokenProgram: asAddress(profile.vault.assetTokenProgram, "vault.assetTokenProgram"),
-      reserve: asAddress(profile.integrations.kamino.reserveAddress, "integrations.kamino.reserveAddress"),
-      amount: parseBigintAmount(options.amount),
-      lookupTableAddresses: profile.vault.useLookupTable && profile.vault.lookupTableAddress
-        ? [asAddress(profile.vault.lookupTableAddress)]
-        : [],
+      const { globals, profile, ctx } = await loadCommandContext(program);
+      const vault = requireVaultAddress(profile, { command });
+      const assetMint = requireAssetMint(profile);
+      const assetTokenProgram = requireAssetTokenProgram(profile);
+      const reserve = requireKaminoReserve(profile, { command });
+      const lookupTableAddresses = resolveLookupTableAddresses(profile, { command });
+      const amount = parseBigintAmount(options.amount);
+      const processorOptions = resolveProcessorOptions(globals);
+      const manager = await loadRoleSigner("manager", options.managerKeypair);
+
+      const operation = await buildKaminoDepositMarketOperation(ctx, {
+        manager,
+        vault,
+        assetMint,
+        assetTokenProgram,
+        reserve,
+        amount,
+        lookupTableAddresses,
+      });
+
+      await processOperation({
+        ctx,
+        payer: manager,
+        operation,
+        mode: globals.mode,
+        options: processorOptions,
+      });
     });
-
-    await processOperation({ ctx, payer: manager, operation, mode: globals.mode });
-  });
+}
 ```
 
 ## Reference: legacy repos (read-only)

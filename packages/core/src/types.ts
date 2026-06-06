@@ -16,6 +16,14 @@ export interface BuiltOperation {
   instructions: Instruction[];
   lookupTableAddresses?: Address[];
   computeUnitLimit?: number | null;
+  /**
+   * Structured, side-effect-free metadata a builder wants surfaced to the
+   * operator — addresses or values that the legacy scripts used to `console.log`
+   * (e.g. the Trustful arbitrary-deposit "withdrawal holding account"). The
+   * processor prints these in `print`/`execute` modes; they never affect the
+   * transaction itself.
+   */
+  metadata?: Record<string, string>;
 }
 
 /**

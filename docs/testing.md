@@ -24,10 +24,10 @@ Run from the repo root:
 
 ## Everything offline runs from source — no build step
 
-`@voltr/scripts-core` is published to its consumers as `dist/`, which would
-normally force a build before anything could resolve it. To keep checks
+Workspace packages are published to their consumers as `dist/`, which would
+normally force a build before anything could resolve them. To keep checks
 build-free, the root [`tsconfig.check.json`](../tsconfig.check.json) maps the
-package (and its `/testing` subpath) to its **source**:
+packages (including `@voltr/scripts-core/testing`) to their **source**:
 
 - `tsc -p tsconfig.check.json` type-checks the whole workspace against source.
 - The same config is handed to `tsx` at runtime via `TSX_TSCONFIG_PATH` (see the
@@ -35,8 +35,8 @@ package (and its `/testing` subpath) to its **source**:
   source.
 
 The per-package `tsconfig.json` files remain the **build** configs — they keep
-`rootDir`/`outDir` and resolve `@voltr/scripts-core` to `dist/`. Only
-`pnpm build` uses them.
+`rootDir`/`outDir` and resolve workspace packages to `dist/`. Only `pnpm build`
+uses them.
 
 ## Offline guarantee
 
@@ -81,7 +81,7 @@ Current coverage:
 | Tx processor mode dispatch   | `packages/core/src/tx/processor.test.ts`      |
 | Vault builder output shape   | `packages/core/src/vault/operations.test.ts`  |
 | CLI help/argument validation | `apps/cli/src/index.test.ts`                  |
-| Adapter builder stubs        | `packages/{kamino,spot,trustful}/src/operations/*.test.ts` |
+| Adapter builder smoke tests  | `packages/{kamino,spot,trustful}/src/operations/*.test.ts` |
 
 ## Adding an adapter builder test
 
@@ -95,10 +95,9 @@ Test helpers live in `@voltr/scripts-core/testing`:
   `BuiltOperation` contract (non-empty label, well-formed kit instructions,
   correctly-typed optional fields).
 
-Each adapter ships a smoke test that asserts its stub builder rejects until
-migrated, with the real output-shape test commented right below it as a
-template — see `packages/kamino/src/operations/deposit-market.test.ts`. When you
-implement a builder, swap the stub assertion for the shape check:
+Each adapter builder should have an offline smoke test. For not-yet-migrated
+builders, assert that the stub rejects clearly. When you implement a builder,
+swap the stub assertion for an output-shape check:
 
 ```ts
 import { test } from "node:test";
