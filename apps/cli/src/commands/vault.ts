@@ -2,12 +2,15 @@ import type { Command } from "commander";
 import {
   asAddress,
   buildAcceptVaultAdminOperation,
+  buildAddAdaptorOperation,
   buildCancelRequestWithdrawVaultOperation,
   buildDepositVaultOperation,
   buildHarvestFeeOperation,
+  buildInitDirectWithdrawStrategyOperation,
   buildInitVaultOperation,
   buildInitVaultWithMetadataOperation,
   buildInstantWithdrawVaultOperation,
+  buildRemoveAdaptorOperation,
   buildRequestWithdrawVaultOperation,
   buildSetTokenMetadataOperation,
   buildUpdateVaultConfigOperation,
@@ -25,7 +28,10 @@ import {
   VAULT_CONFIG_FIELD_NAMES,
   vaultConfigFieldKind,
   type Address,
+  type BuiltOperation,
+  type KeyPairSigner,
   type LpTokenMetadata,
+  type ScriptContext,
   type TxMode,
   type VaultConfigField,
   type VaultInitConfig,
@@ -57,6 +63,28 @@ function parseRawU16(value: string, flag: string): number {
     throw new CliError(`${flag} must be a u16 in the range 0..65535: ${value}`);
   }
   return parsed;
+}
+
+/**
+ * Parse a `--discriminator` flag: exactly 8 comma-separated bytes, each 0..255.
+ * Used by the generic `vault:init-direct-withdraw` command, where the adaptor
+ * instruction discriminator is supplied per call rather than read from a profile.
+ */
+function parseDiscriminator(value: string): number[] {
+  const parts = value.split(",").map((part) => part.trim());
+  if (parts.length !== 8) {
+    throw new CliError(
+      `--discriminator must be 8 comma-separated bytes: ${value}`
+    );
+  }
+  return parts.map((part) => {
+    if (!/^\d+$/.test(part) || Number(part) > 255) {
+      throw new CliError(
+        `--discriminator bytes must be integers in 0..255: ${value}`
+      );
+    }
+    return Number(part);
+  });
 }
 
 /** Coerce the `--value` flag for vault:update-config to the field's value type. */
@@ -804,9 +832,171 @@ function printVaultAddress(vault: Address): void {
   );
 }
 
+// --- adaptor administration (generic across adapters, VOL-224) ---
+
+type AdaptorToggleArgs = {
+  admin: KeyPairSigner;
+  vault: Address;
+  adaptorProgram: Address;
+  lookupTableAddresses?: Address[];
+};
+
+type AdaptorToggleBuilder = (
+  ctx: ScriptContext,
+  args: AdaptorToggleArgs
+) => Promise<BuiltOperation>;
+
+/**
+ * Register `vault:add-adaptor` / `vault:remove-adaptor`. Both register or
+ * deregister an adaptor program on the vault and share the same flags (admin
+ * signer + `--adaptor-program`), differing only by command name and builder. The
+ * adaptor program id is a flag rather than a profile field because it is a fixed
+ * adapter constant the operator supplies (Spot, Kamino, or Trustful).
+ */
+function registerAdaptorToggle(
+  program: Command,
+  command: "vault:add-adaptor" | "vault:remove-adaptor",
+  builder: AdaptorToggleBuilder
+): void {
+  const isAdd = command.endsWith("add-adaptor");
+  const verb = isAdd ? "Register" : "Deregister";
+  const preposition = isAdd ? "on" : "from";
+  program
+    .command(command)
+    .summary(`${verb.toLowerCase()} an adaptor program ${preposition} the vault`)
+    .description(
+      `${verb} an adaptor program ${preposition} the vault${
+        isAdd ? " so the manager can route strategy CPIs through it" : ""
+      }. Pass the adaptor program id with --adaptor-program (e.g. the Spot, Kamino, or Trustful adaptor). Signs as the vault admin.`
+    )
+    .option(
+      "--admin-keypair <path>",
+      "admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .requiredOption(
+      "--adaptor-program <address>",
+      "adaptor program id to register / deregister"
+    )
+    .action(
+      async (options: { adminKeypair?: string; adaptorProgram: string }) => {
+        const { globals, profile, ctx } = await loadCommandContext(program);
+        const vault = requireVaultAddress(profile, { command });
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command,
+        });
+        const adaptorProgram = asAddress(
+          options.adaptorProgram,
+          "--adaptor-program"
+        );
+        const processorOptions = resolveProcessorOptions(globals);
+        const admin = await loadRoleSigner("admin", options.adminKeypair);
+
+        const operation = await builder(ctx, {
+          admin,
+          vault,
+          adaptorProgram,
+          lookupTableAddresses,
+        });
+
+        await processOperation({
+          ctx,
+          payer: admin,
+          operation,
+          mode: globals.mode,
+          options: processorOptions,
+        });
+      }
+    );
+}
+
+/**
+ * Generic adaptor-administration commands (`vault:add-adaptor`,
+ * `vault:remove-adaptor`, `vault:init-direct-withdraw`). These wrap the generic
+ * core builders, which take the adaptor program (and, for direct-withdraw, the
+ * strategy and discriminator) as parameters rather than hardcoding any adapter.
+ * Adapter-specific direct-withdraw flows that must *derive* their strategy (e.g.
+ * Spot's Jupiter `lending` PDA via `spot:earn:init-direct-withdraw`) live in the
+ * adapter's own command group.
+ */
+function registerAdaptorAdminCommands(program: Command): void {
+  registerAdaptorToggle(program, "vault:add-adaptor", buildAddAdaptorOperation);
+  registerAdaptorToggle(
+    program,
+    "vault:remove-adaptor",
+    buildRemoveAdaptorOperation
+  );
+
+  program
+    .command("vault:init-direct-withdraw")
+    .summary("register a direct-withdraw strategy on the vault")
+    .description(
+      "Register a direct-withdraw strategy on the vault, binding it to an adaptor instruction discriminator. Generic across adapters: pass the strategy address (Kamino: the kvault address), the adaptor program, and the 8-byte instruction discriminator as flags. For the Spot Jupiter Earn strategy use spot:earn:init-direct-withdraw, which derives the strategy and adaptor program for you. Signs as the vault admin."
+    )
+    .option(
+      "--admin-keypair <path>",
+      "admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .requiredOption(
+      "--strategy <address>",
+      "strategy the direct-withdraw flow targets (Kamino: the kvault address)"
+    )
+    .requiredOption(
+      "--adaptor-program <address>",
+      "adaptor program that owns the strategy"
+    )
+    .requiredOption(
+      "--discriminator <bytes>",
+      "8-byte adaptor instruction discriminator, comma-separated (e.g. 135,7,237,120,149,94,95,7)"
+    )
+    .action(
+      async (options: {
+        adminKeypair?: string;
+        strategy: string;
+        adaptorProgram: string;
+        discriminator: string;
+      }) => {
+        const command = "vault:init-direct-withdraw";
+
+        const { globals, profile, ctx } = await loadCommandContext(program);
+        const vault = requireVaultAddress(profile, { command });
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command,
+        });
+        const strategy = asAddress(options.strategy, "--strategy");
+        const adaptorProgram = asAddress(
+          options.adaptorProgram,
+          "--adaptor-program"
+        );
+        const instructionDiscriminator = parseDiscriminator(
+          options.discriminator
+        );
+        const processorOptions = resolveProcessorOptions(globals);
+        const admin = await loadRoleSigner("admin", options.adminKeypair);
+
+        const operation = await buildInitDirectWithdrawStrategyOperation(ctx, {
+          admin,
+          vault,
+          strategy,
+          adaptorProgram,
+          instructionDiscriminator,
+          lookupTableAddresses,
+        });
+
+        await processOperation({
+          ctx,
+          payer: admin,
+          operation,
+          mode: globals.mode,
+          options: processorOptions,
+        });
+      }
+    );
+}
+
 /** Shared vault operations (`vault:*`). */
 export function registerVaultCommands(program: Command): void {
   registerAdminVaultCommands(program);
   registerUserVaultCommands(program);
+  registerAdaptorAdminCommands(program);
   registerVaultQueryCommands(program);
 }
