@@ -38,6 +38,8 @@ docs/
 
 - **[docs/architecture.md](./docs/architecture.md)** — read this first. Defines package responsibilities, the operation-builder contract, command naming, query vs transaction commands, web3.js isolation, where operational values live, and the step-by-step recipe for adding a new operation.
 - **[docs/migration-plan.md](./docs/migration-plan.md)** — which legacy scripts to port, in what order.
+- **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, and how to add adapter builder tests.
+- **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, and how to add adapter builder tests.
 
 ## First commands
 
@@ -119,12 +121,11 @@ pnpm cli -- --profile configs/my-vault.json \
 pnpm cli -- --profile configs/my-vault.json check
 ```
 
-The `kamino:*`, `spot:*`, and `trustful:*` commands are wired into the framework
-but their operation builders are **placeholders** until the per-adapter
-migration tickets land. They validate flags and profile fields, then fail with a
-clear "not migrated yet" message pointing at the legacy script to port. The
-command naming, flags, and structure are stable; only the builder body is
-pending.
+The `kamino:*` commands are wired into the framework but their operation
+builders are **placeholders** until the Kamino migration lands. They validate
+flags and profile fields, then fail with a clear "not migrated yet" message
+pointing at the legacy script to port. Spot and Trustful command builders have
+been migrated.
 
 ### Global options
 
@@ -141,6 +142,20 @@ pending.
 Transaction commands honor `--mode`; `check` ignores it (it never builds a
 transaction). See [docs/architecture.md](./docs/architecture.md) for how
 `--mode` is dispatched by `processOperation`.
+
+## Checks before opening a PR
+
+All checks are offline — no RPC URL, no keypair files, no build step:
+
+```bash
+pnpm typecheck   # type-checks every package + app, including test files
+pnpm test        # runs all *.test.ts with the Node test runner
+pnpm check       # typecheck + build + test (the CI-ready gate)
+```
+
+Run `pnpm check` before opening a PR. See **[docs/testing.md](./docs/testing.md)**
+for what is covered, the offline guarantee, and how to add a builder test for a
+newly migrated operation.
 
 ## Profiles
 

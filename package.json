@@ -6,9 +6,10 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build": "pnpm -r --if-present build",
-    "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm -r --if-present test",
-    "cli": "tsx apps/cli/src/index.ts"
+    "typecheck": "tsc -p tsconfig.check.json",
+    "test": "TSX_TSCONFIG_PATH=tsconfig.check.json node --import tsx --test \"packages/*/src/**/*.test.ts\" \"apps/*/src/**/*.test.ts\"",
+    "check": "pnpm run typecheck && pnpm run build && pnpm run test",
+    "cli": "pnpm --filter @voltr/scripts-cli dev"
   },
   "devDependencies": {
     "@types/node": "^22.10.10",
@@ -16,4 +17,3 @@
     "typescript": "^5.7.3"
   }
 }
-

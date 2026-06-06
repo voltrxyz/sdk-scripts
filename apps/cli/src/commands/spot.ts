@@ -34,6 +34,16 @@ function parseSlippageBps(value: string): number {
   return bps;
 }
 
+function parseJupiterMaxAccounts(value: string): number {
+  const maxAccounts = Number(value);
+  if (!Number.isInteger(maxAccounts) || maxAccounts <= 0) {
+    throw new CliError(
+      `--jupiter-max-accounts must be a positive integer: ${value}`
+    );
+  }
+  return maxAccounts;
+}
+
 /**
  * Register a spot swap command (`spot:spot:buy` / `spot:spot:sell`). Both sides
  * share the same flags and profile fields, so they differ only by command name
@@ -47,9 +57,9 @@ function registerSpotSwap(
   const side = command.endsWith("buy") ? "Buy" : "Sell";
   program
     .command(command)
-    .summary(`${side.toLowerCase()} the foreign asset via spot swap [not migrated]`)
+    .summary(`${side.toLowerCase()} the foreign asset via spot swap`)
     .description(
-      `${side} the configured foreign asset against the vault asset via a spot swap.\nPlaceholder: the operation builder is not migrated yet.`
+      `${side} the configured foreign asset against the vault asset via a spot swap.`
     )
     .option(
       "--manager-keypair <path>",
@@ -57,22 +67,44 @@ function registerSpotSwap(
     )
     .requiredOption("--amount <raw>", "raw asset amount in smallest units")
     .requiredOption("--slippage-bps <bps>", "max slippage in basis points")
+    .option(
+      "--jupiter-max-accounts <n>",
+      "max accounts to request from Jupiter",
+      "16"
+    )
+    .option(
+      "--minimum-threshold-amount-out <raw>",
+      "reject the Jupiter quote if its threshold output is below this raw amount"
+    )
     .action(
       async (options: {
         managerKeypair?: string;
         amount: string;
         slippageBps: string;
+        jupiterMaxAccounts: string;
+        minimumThresholdAmountOut?: string;
       }) => {
         const { globals, profile, ctx } = await loadCommandContext(program);
         const vault = requireVaultAddress(profile, { command });
         const assetMint = requireAssetMint(profile);
         const assetTokenProgram = requireAssetTokenProgram(profile);
-        const { foreignMint } = requireSpotIntegration(profile, { command });
+        const {
+          foreignMint,
+          foreignTokenProgram,
+          assetOracle,
+          foreignOracle,
+        } = requireSpotIntegration(profile, { command });
         const lookupTableAddresses = resolveLookupTableAddresses(profile, {
           command,
         });
         const amount = parseBigintAmount(options.amount);
         const slippageBps = parseSlippageBps(options.slippageBps);
+        const jupiterMaxAccounts = parseJupiterMaxAccounts(
+          options.jupiterMaxAccounts
+        );
+        const minimumThresholdAmountOut = options.minimumThresholdAmountOut
+          ? parseBigintAmount(options.minimumThresholdAmountOut)
+          : undefined;
         const processorOptions = resolveProcessorOptions(globals);
         const manager = await loadRoleSigner("manager", options.managerKeypair);
 
@@ -82,8 +114,13 @@ function registerSpotSwap(
           assetMint,
           assetTokenProgram,
           foreignMint,
+          foreignTokenProgram,
+          assetOracle,
+          foreignOracle,
           amount,
           slippageBps,
+          jupiterMaxAccounts,
+          minimumThresholdAmountOut,
           lookupTableAddresses,
         });
 

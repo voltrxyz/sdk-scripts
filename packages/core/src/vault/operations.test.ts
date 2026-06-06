@@ -10,6 +10,8 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   TOKEN_PROGRAM_ADDRESS,
 } from "@solana-program/token";
+import { findVaultLpMintPda } from "@voltr/vault-sdk";
+import { assertBuiltOperationShape } from "../testing.js";
 import type { ScriptContext } from "../types.js";
 import { NATIVE_MINT } from "./constants.js";
 import {
@@ -28,7 +30,6 @@ import {
   buildRequestWithdrawVaultOperation,
   buildWithdrawVaultOperation,
 } from "./operations.js";
-import { findVaultLpMintPda } from "@voltr/vault-sdk";
 
 const USDC_MINT =
   "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" as Address;
@@ -75,7 +76,7 @@ test("deposit wraps native SOL: create wSOL ATA, transfer, sync, then close", as
     amount: 1_000_000n,
   });
 
-  assert.equal(op.label, "vault:deposit");
+  assertBuiltOperationShape(op, { label: "vault:deposit", minInstructions: 5 });
   // createATA(wSOL) + transferSol + syncNative + deposit + closeAccount
   assert.equal(op.instructions.length, 5);
   const programs = op.instructions.map((ix) => ix.programAddress);
@@ -104,6 +105,7 @@ test("deposit of a non-native mint does not wrap SOL", async () => {
     amount: 1_000_000n,
   });
 
+  assertBuiltOperationShape(op, { label: "vault:deposit" });
   // Just the deposit instruction; no wrap, sync, or close.
   assert.equal(op.instructions.length, 1);
   const programs = op.instructions.map((ix) => ix.programAddress);
@@ -123,6 +125,7 @@ test("deposit creates the LP token account when it is missing", async () => {
     amount: 1_000_000n,
   });
 
+  assertBuiltOperationShape(op, { label: "vault:deposit", minInstructions: 2 });
   // create LP ATA + deposit
   assert.equal(op.instructions.length, 2);
 });
@@ -138,7 +141,10 @@ test("withdraw closes the wSOL ATA only for native SOL", async () => {
     assetMint: NATIVE_MINT,
     assetTokenProgram: TOKEN_PROGRAM_ADDRESS,
   });
-  assert.equal(native.label, "vault:withdraw");
+  assertBuiltOperationShape(native, {
+    label: "vault:withdraw",
+    minInstructions: 3,
+  });
   // createATA(asset) + withdraw + closeAccount
   assert.equal(native.instructions.length, 3);
   assert.equal(native.instructions.at(-1)?.programAddress, TOKEN_PROGRAM_ADDRESS);
@@ -149,6 +155,7 @@ test("withdraw closes the wSOL ATA only for native SOL", async () => {
     assetMint: USDC_MINT,
     assetTokenProgram: TOKEN_PROGRAM_ADDRESS,
   });
+  assertBuiltOperationShape(spl, { label: "vault:withdraw", minInstructions: 2 });
   // createATA(asset) + withdraw, no close
   assert.equal(spl.instructions.length, 2);
 });
@@ -167,7 +174,10 @@ test("instant-withdraw closes the wSOL ATA only for native SOL", async () => {
     isAmountInLp: false,
     isWithdrawAll: false,
   });
-  assert.equal(native.label, "vault:instant-withdraw");
+  assertBuiltOperationShape(native, {
+    label: "vault:instant-withdraw",
+    minInstructions: 2,
+  });
   // instantWithdraw + closeAccount
   assert.equal(native.instructions.length, 2);
   assert.equal(native.instructions.at(-1)?.programAddress, TOKEN_PROGRAM_ADDRESS);
@@ -181,6 +191,7 @@ test("instant-withdraw closes the wSOL ATA only for native SOL", async () => {
     isAmountInLp: false,
     isWithdrawAll: false,
   });
+  assertBuiltOperationShape(spl, { label: "vault:instant-withdraw" });
   // just instantWithdraw, no close
   assert.equal(spl.instructions.length, 1);
 });
@@ -196,18 +207,16 @@ test("request-withdraw escrows LP into the receipt ATA when missing", async () =
     isWithdrawAll: false,
   };
 
-  const missing = await buildRequestWithdrawVaultOperation(
-    makeCtx(false),
-    args
-  );
-  assert.equal(missing.label, "vault:request-withdraw");
+  const missing = await buildRequestWithdrawVaultOperation(makeCtx(false), args);
+  assertBuiltOperationShape(missing, {
+    label: "vault:request-withdraw",
+    minInstructions: 2,
+  });
   // create receipt LP ATA + requestWithdraw
   assert.equal(missing.instructions.length, 2);
 
-  const existing = await buildRequestWithdrawVaultOperation(
-    makeCtx(true),
-    args
-  );
+  const existing = await buildRequestWithdrawVaultOperation(makeCtx(true), args);
+  assertBuiltOperationShape(existing, { label: "vault:request-withdraw" });
   // receipt LP ATA exists -> just requestWithdraw
   assert.equal(existing.instructions.length, 1);
 });
@@ -219,11 +228,15 @@ test("harvest-fee sets up LP accounts for admin, manager, and protocol admin", a
   const args = { admin, manager, vault };
 
   const missing = await buildHarvestFeeOperation(makeCtx(false), args);
-  assert.equal(missing.label, "vault:harvest-fee");
+  assertBuiltOperationShape(missing, {
+    label: "vault:harvest-fee",
+    minInstructions: 4,
+  });
   // three create-ATA instructions (admin, manager, protocol admin) + harvest
   assert.equal(missing.instructions.length, 4);
 
   const existing = await buildHarvestFeeOperation(makeCtx(true), args);
+  assertBuiltOperationShape(existing, { label: "vault:harvest-fee" });
   // all LP accounts exist -> just harvest
   assert.equal(existing.instructions.length, 1);
 });
@@ -237,14 +250,14 @@ test("cancel-request-withdraw and accept-admin build a single instruction", asyn
     user,
     vault,
   });
-  assert.equal(cancel.label, "vault:cancel-request-withdraw");
+  assertBuiltOperationShape(cancel, { label: "vault:cancel-request-withdraw" });
   assert.equal(cancel.instructions.length, 1);
 
   const accept = await buildAcceptVaultAdminOperation(ctx, {
     pendingAdmin: user,
     vault,
   });
-  assert.equal(accept.label, "vault:accept-admin");
+  assertBuiltOperationShape(accept, { label: "vault:accept-admin" });
   assert.equal(accept.instructions.length, 1);
 });
 
@@ -278,7 +291,7 @@ test("init builders thread an existing lookup table through, like the others", a
   };
 
   const init = await buildInitVaultOperation(makeCtx(true), base);
-  assert.equal(init.label, "vault:init");
+  assertBuiltOperationShape(init, { label: "vault:init" });
   assert.equal(init.instructions.length, 1);
   assert.deepEqual(init.lookupTableAddresses, [lut]);
 
@@ -286,7 +299,10 @@ test("init builders thread an existing lookup table through, like the others", a
     ...base,
     lpTokenMetadata: { name: "LP", symbol: "LP", uri: "" },
   });
-  assert.equal(withMeta.label, "vault:init-with-metadata");
+  assertBuiltOperationShape(withMeta, {
+    label: "vault:init-with-metadata",
+    minInstructions: 2,
+  });
   assert.equal(withMeta.instructions.length, 2);
   assert.deepEqual(withMeta.lookupTableAddresses, [lut]);
 });
@@ -303,8 +319,8 @@ test("update-config appends the LP mint only for management-fee fields", async (
     field: VaultConfigField.ManagerManagementFee,
     value: 100,
   });
+  assertBuiltOperationShape(mgmt, { label: "vault:update-config" });
   const mgmtAccounts = mgmt.instructions[0].accounts ?? [];
-  assert.equal(mgmt.label, "vault:update-config");
   assert.equal(mgmtAccounts.at(-1)?.address, lpMint);
 
   const cap = await buildUpdateVaultConfigOperation(ctx, {
@@ -313,6 +329,7 @@ test("update-config appends the LP mint only for management-fee fields", async (
     field: VaultConfigField.MaxCap,
     value: 200n,
   });
+  assertBuiltOperationShape(cap, { label: "vault:update-config" });
   const capAccounts = cap.instructions[0].accounts ?? [];
   assert.notEqual(capAccounts.at(-1)?.address, lpMint);
   // The management-fee variant carries exactly one extra (LP mint) account.
