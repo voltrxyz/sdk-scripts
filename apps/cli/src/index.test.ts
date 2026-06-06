@@ -351,6 +351,114 @@ test("vault:init* reject --mode multisig even when fully specified", async () =>
   });
 });
 
+test("--help lists the full trustful + adaptor-admin command surface", async () => {
+  const { program, output } = harness();
+  await assert.rejects(() => parse(program, ["--help"]));
+  const text = output();
+  for (const cmd of [
+    "vault:add-adaptor",
+    "vault:remove-adaptor",
+    "trustful:arbitrary:init",
+    "trustful:arbitrary:deposit",
+    "trustful:arbitrary:withdraw",
+    "trustful:curve:init",
+    "trustful:curve:borrow",
+    "trustful:curve:repay",
+    "trustful:curve:remove",
+  ]) {
+    assert.ok(text.includes(cmd), `--help should list ${cmd}`);
+  }
+});
+
+test("vault:add-adaptor and vault:remove-adaptor require --adaptor-program", async () => {
+  for (const cmd of ["vault:add-adaptor", "vault:remove-adaptor"]) {
+    const { program } = harness();
+    await assert.rejects(
+      () => parse(program, ["--profile", "p.json", cmd]),
+      /adaptor-program/
+    );
+  }
+});
+
+test("trustful:arbitrary:withdraw requires --amount and --position-value-after", async () => {
+  const incompleteFlagSets = [
+    ["--position-value-after", "1"], // missing --amount
+    ["--amount", "1"], // missing --position-value-after
+  ];
+  for (const flags of incompleteFlagSets) {
+    const { program } = harness();
+    await assert.rejects(() =>
+      parse(program, [
+        "--profile",
+        "p.json",
+        "trustful:arbitrary:withdraw",
+        ...flags,
+      ])
+    );
+  }
+});
+
+test("trustful:arbitrary:init surfaces a missing trustful section before any network/keypair I/O", async () => {
+  // vaultAddress is set, but integrations.trustful is absent -> the strategy
+  // seed accessor should throw before createScriptContext dials or the keypair
+  // file is touched.
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: {
+      assetMintAddress: USDC,
+      assetTokenProgram: TOKEN_PROGRAM,
+      vaultAddress: SYSTEM,
+    },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "--mode",
+          "print",
+          "trustful:arbitrary:init",
+          "--manager-keypair",
+          "/nonexistent/manager.json",
+        ]),
+      /integrations\.trustful/
+    );
+  });
+});
+
+test("trustful:curve:remove surfaces a missing profile field before any network/keypair I/O", async () => {
+  // No vaultAddress -> requireVaultAddress should throw before the curve seed is
+  // derived, the RPC is dialed, or the keypair file is read.
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "--mode",
+          "print",
+          "trustful:curve:remove",
+          "--manager-keypair",
+          "/nonexistent/manager.json",
+        ]),
+      /vault\.vaultAddress/
+    );
+  });
+});
+
 async function runCli(args: string[]): Promise<string> {
   const cliEntry = fileURLToPath(new URL("./index.ts", import.meta.url));
   const checkConfig = fileURLToPath(

@@ -2,12 +2,14 @@ import type { Command } from "commander";
 import {
   asAddress,
   buildAcceptVaultAdminOperation,
+  buildAddAdaptorOperation,
   buildCancelRequestWithdrawVaultOperation,
   buildDepositVaultOperation,
   buildHarvestFeeOperation,
   buildInitVaultOperation,
   buildInitVaultWithMetadataOperation,
   buildInstantWithdrawVaultOperation,
+  buildRemoveAdaptorOperation,
   buildRequestWithdrawVaultOperation,
   buildSetTokenMetadataOperation,
   buildUpdateVaultConfigOperation,
@@ -25,7 +27,10 @@ import {
   VAULT_CONFIG_FIELD_NAMES,
   vaultConfigFieldKind,
   type Address,
+  type BuiltOperation,
+  type KeyPairSigner,
   type LpTokenMetadata,
+  type ScriptContext,
   type TxMode,
   type VaultConfigField,
   type VaultInitConfig,
@@ -260,6 +265,84 @@ function assertInitModeSupported(mode: TxMode, command: string): void {
       `${command} does not support --mode multisig: it generates a new vault keypair that must sign initialization, and a multisig payload cannot carry that signature. Use --mode execute (or --mode print / simulate to preview).`
     );
   }
+}
+
+// --- adaptor allowlist commands (vault:add-adaptor / vault:remove-adaptor) ---
+
+interface AdaptorAdminArgs {
+  admin: KeyPairSigner;
+  vault: Address;
+  adaptorProgram: Address;
+  lookupTableAddresses?: Address[];
+}
+
+type AdaptorAdminBuilder = (
+  ctx: ScriptContext,
+  args: AdaptorAdminArgs
+) => Promise<BuiltOperation>;
+
+/**
+ * Register an adaptor allowlist command (`vault:add-adaptor` /
+ * `vault:remove-adaptor`). Both are admin-signed, take a single
+ * `--adaptor-program` flag, and differ only by builder and verb. The program ID
+ * is a flag (not a profile field) so one command serves every adapter — pass the
+ * adapter package's exported constant, e.g. Trustful's
+ * `3pnpK9nrs1R65eMV1wqCXkDkhSgN18xb1G5pgYPwoZjJ`.
+ */
+function registerAdaptorAdminCommand(
+  program: Command,
+  command: "vault:add-adaptor" | "vault:remove-adaptor",
+  builder: AdaptorAdminBuilder
+): void {
+  const isAdd = command.endsWith("add-adaptor");
+  const verb = isAdd ? "Register" : "Deregister";
+  const preposition = isAdd ? "on" : "from";
+  program
+    .command(command)
+    .summary(
+      `${isAdd ? "register" : "deregister"} an adaptor program ${preposition} the vault`
+    )
+    .description(
+      `${verb} an adaptor program ${preposition} the vault. Signs as the vault admin.`
+    )
+    .option(
+      "--admin-keypair <path>",
+      "admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .requiredOption(
+      "--adaptor-program <address>",
+      "adaptor program id (e.g. an adapter package constant)"
+    )
+    .action(
+      async (options: { adminKeypair?: string; adaptorProgram: string }) => {
+        const { globals, profile, ctx } = await loadCommandContext(program);
+        const vault = requireVaultAddress(profile, { command });
+        const adaptorProgram = asAddress(
+          options.adaptorProgram,
+          "--adaptor-program"
+        );
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command,
+        });
+        const processorOptions = resolveProcessorOptions(globals);
+        const admin = await loadRoleSigner("admin", options.adminKeypair);
+
+        const operation = await builder(ctx, {
+          admin,
+          vault,
+          adaptorProgram,
+          lookupTableAddresses,
+        });
+
+        await processOperation({
+          ctx,
+          payer: admin,
+          operation,
+          mode: globals.mode,
+          options: processorOptions,
+        });
+      }
+    );
 }
 
 /** Admin operations: vault lifecycle, config, and fee harvesting. */
@@ -541,6 +624,17 @@ function registerAdminVaultCommands(program: Command): void {
         options: processorOptions,
       });
     });
+
+  registerAdaptorAdminCommand(
+    program,
+    "vault:add-adaptor",
+    buildAddAdaptorOperation
+  );
+  registerAdaptorAdminCommand(
+    program,
+    "vault:remove-adaptor",
+    buildRemoveAdaptorOperation
+  );
 }
 
 /** User operations: deposit and the withdrawal flows. */
