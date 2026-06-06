@@ -67,6 +67,10 @@ export const KaminoIntegrationSchema = z
   .object({
     reserveAddress: OptionalAddressSchema,
     kvaultAddress: OptionalAddressSchema,
+    // 8-byte adaptor instruction the kvault direct-withdraw flow invokes; bound
+    // on-chain by `vault:init-direct-withdraw`. Per-deployment, hence a profile
+    // value rather than a fixed adapter constant (see docs/adaptor-admin.md).
+    directWithdrawDiscriminator: OptionalDiscriminatorSchema,
   })
   .strict();
 
@@ -262,6 +266,31 @@ export function requireKaminoKvault(
     );
   }
   return address(section.kvaultAddress);
+}
+
+// The direct-withdraw discriminator is a per-deployment value, so it lives in
+// the profile (not a fixed adapter constant). `vault:init-direct-withdraw` binds
+// it on-chain for the Kamino kvault strategy.
+export function requireKaminoDirectWithdrawDiscriminator(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): number[] {
+  const section = profile.integrations?.kamino;
+  if (!section) {
+    throw new ProfileFieldError(profile.name, "integrations.kamino", options);
+  }
+  if (!section.directWithdrawDiscriminator) {
+    throw new ProfileFieldError(
+      profile.name,
+      "integrations.kamino.directWithdrawDiscriminator",
+      {
+        ...options,
+        hint:
+          "Set integrations.kamino.directWithdrawDiscriminator to the 8-byte adaptor instruction the kvault direct-withdraw flow invokes (the legacy per-deployment directWithdrawDiscriminator).",
+      }
+    );
+  }
+  return section.directWithdrawDiscriminator;
 }
 
 // Convenience accessor for operations that genuinely need both addresses.

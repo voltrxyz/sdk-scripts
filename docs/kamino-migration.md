@@ -1,33 +1,30 @@
-# Kamino migration (VOL-225)
+# Kamino migration (VOL-225 / VOL-228)
 
 Maps the legacy `voltr-kamino-scripts/src/scripts/*` scripts to the operation
-builders now in `packages/kamino`. The **shape** every builder follows is the
-operation-builder contract in [architecture.md](./architecture.md); the overall
-order is in [migration-plan.md](./migration-plan.md). This document records what
-moved where and the few deliberate deferrals.
-
-CLI command wiring is intentionally **out of scope** for VOL-225 — these are
-builders only. The `Label` column is the command name each builder's `label`
-field already uses, so wiring is a later, mechanical step.
+builders now in `packages/kamino` and the CLI commands wired in VOL-228. The
+**shape** every builder follows is the operation-builder contract in
+[architecture.md](./architecture.md); the overall order is in
+[migration-plan.md](./migration-plan.md). This document records what moved where
+and the few deliberate deferrals.
 
 ## Script → builder map
 
-| Legacy script | Builder (`packages/kamino`) | Label | Status |
-| --- | --- | --- | --- |
-| `manager-initialize-market.ts` | `buildKaminoMarketInitOperation` | `kamino:market:init` | Migrated |
-| `manager-deposit-market.ts` | `buildKaminoMarketDepositOperation` | `kamino:market:deposit` | Migrated (replaces the placeholder) |
-| `manager-withdraw-market.ts` | `buildKaminoMarketWithdrawOperation` | `kamino:market:withdraw` | Migrated |
-| `manager-initialize-kvault.ts` | `buildKaminoKvaultInitOperation` | `kamino:kvault:init` | Migrated |
-| `manager-deposit-kvault.ts` | `buildKaminoKvaultDepositOperation` | `kamino:kvault:deposit` | Migrated |
-| `manager-withdraw-kvault.ts` | `buildKaminoKvaultWithdrawOperation` | `kamino:kvault:withdraw` | Migrated |
-| `manager-claim-market-reward.ts` | `buildKaminoMarketClaimRewardOperation` (no `rewardIndex`) | `kamino:market:claim-reward` | Migrated |
-| `manager-claim-market-reward-with-index.ts` | `buildKaminoMarketClaimRewardOperation` (`rewardIndex` set) | `kamino:market:claim-reward` | Migrated (folded into the above) |
-| `manager-claim-kvault-rewards.ts` | `buildKaminoKvaultClaimRewardsOperation` (no `rewardIndex`) | `kamino:kvault:claim-rewards` | Migrated |
-| `manager-claim-kvault-rewards-with-index.ts` | `buildKaminoKvaultClaimRewardsOperation` (`rewardIndex` set) | `kamino:kvault:claim-rewards` | Migrated (folded into the above) |
-| `user-direct-withdraw-strategy.ts` | `buildKaminoUserDirectWithdrawOperation` | `kamino:user:direct-withdraw` | Migrated |
-| `user-request-and-direct-withdraw-strategy.ts` | `buildKaminoUserRequestAndDirectWithdrawOperation` | `kamino:user:request-and-direct-withdraw` | Migrated |
-| `admin-add-adaptor.ts` | — | `kamino:admin:add-adaptor` | Deferred to VOL-224 |
-| `admin-init-direct-withdraw.ts` | — | `kamino:admin:init-direct-withdraw` | Deferred to VOL-224 |
+| Legacy script | Builder (`packages/kamino`) | Builder label | CLI command | Status |
+| --- | --- | --- | --- | --- |
+| `manager-initialize-market.ts` | `buildKaminoMarketInitOperation` | `kamino:market:init` | `kamino:market:init` | Wired |
+| `manager-deposit-market.ts` | `buildKaminoMarketDepositOperation` | `kamino:market:deposit` | `kamino:market:deposit` | Wired |
+| `manager-withdraw-market.ts` | `buildKaminoMarketWithdrawOperation` | `kamino:market:withdraw` | `kamino:market:withdraw` | Wired |
+| `manager-initialize-kvault.ts` | `buildKaminoKvaultInitOperation` | `kamino:kvault:init` | `kamino:kvault:init` | Wired |
+| `manager-deposit-kvault.ts` | `buildKaminoKvaultDepositOperation` | `kamino:kvault:deposit` | `kamino:kvault:deposit` | Wired |
+| `manager-withdraw-kvault.ts` | `buildKaminoKvaultWithdrawOperation` | `kamino:kvault:withdraw` | `kamino:kvault:withdraw` | Wired |
+| `manager-claim-market-reward.ts` | `buildKaminoMarketClaimRewardOperation` (no `rewardIndex`) | `kamino:market:claim-reward` | `kamino:market:claim-reward` | Wired |
+| `manager-claim-market-reward-with-index.ts` | `buildKaminoMarketClaimRewardOperation` (`rewardIndex` set) | `kamino:market:claim-reward` | `kamino:market:claim-reward-with-index` | Wired as a CLI variant over the same builder |
+| `manager-claim-kvault-rewards.ts` | `buildKaminoKvaultClaimRewardsOperation` (no `rewardIndex`) | `kamino:kvault:claim-rewards` | `kamino:kvault:claim-rewards` | Wired |
+| `manager-claim-kvault-rewards-with-index.ts` | `buildKaminoKvaultClaimRewardsOperation` (`rewardIndex` set) | `kamino:kvault:claim-rewards` | `kamino:kvault:claim-rewards-with-index` | Wired as a CLI variant over the same builder |
+| `user-direct-withdraw-strategy.ts` | `buildKaminoUserDirectWithdrawOperation` | `kamino:user:direct-withdraw` | `kamino:user:direct-withdraw` | Wired |
+| `user-request-and-direct-withdraw-strategy.ts` | `buildKaminoUserRequestAndDirectWithdrawOperation` | `kamino:user:request-and-direct-withdraw` | `kamino:user:request-and-direct-withdraw` | Wired |
+| `admin-add-adaptor.ts` | `buildAddAdaptorOperation` (`packages/core`) | `vault:add-adaptor` | `vault:add-adaptor` | Wired as generic vault adaptor admin |
+| `admin-init-direct-withdraw.ts` | `buildInitDirectWithdrawStrategyOperation` (`packages/core`) | `vault:init-direct-withdraw` | `vault:init-direct-withdraw` | Wired as generic vault adaptor admin |
 
 `query-strategy-positions.ts` is not in the VOL-225 list (it is a vault-level
 query tracked under the shared-core work in
@@ -71,37 +68,61 @@ repo's kit rpc and decodes them with the SDK's version-agnostic, rpc-free
 re-branded to the repo's `Address` at the boundary (`asKitAddress`). This is the
 same boundary-isolation idea the architecture doc describes for web3.js.
 
+## CLI wiring notes
+
+VOL-228 wires the migrated builders into `apps/cli/src/commands/kamino.ts`.
+Reserve and kvault strategy identifiers come from the profile. Amounts, reward
+identity, reward index, signer paths, and optional Jupiter swap settings are
+flags.
+
+The VOL-228 ticket suggested `kamino:strategy:*` for the user direct-withdraw
+commands. The CLI uses the builder labels instead:
+`kamino:user:direct-withdraw` and
+`kamino:user:request-and-direct-withdraw`. That keeps the command name equal to
+the operation label, matching the architecture rule.
+
+The two legacy admin scripts are wired under `vault:*` because the builders are
+generic base-vault operations from VOL-224, parameterized by the adaptor program
+and direct-withdraw strategy. The CLI defaults those commands to the Kamino
+adaptor and the profile's Kamino kvault. If `--adaptor-program` is overridden,
+the operator must also pass `--discriminator` so a non-Kamino
+adaptor is not accidentally bound to
+`integrations.kamino.directWithdrawDiscriminator`.
+
 ## Claim-reward scope
 
 The two claim builders cover **one already-resolved farm/reward each** and
-accept a pre-resolved, kit-typed `jupiterSwap` payload. Two pieces are
-deliberately left to the (out-of-scope) CLI layer, matching the architecture's
-rule that multi-tx orchestration is a CLI/processor concern:
+accept a pre-resolved, kit-typed `jupiterSwap` payload. Two pieces are CLI
+responsibilities, matching the architecture's rule that multi-tx orchestration
+is a CLI/processor concern:
 
 - **Farm discovery** — the legacy scripts loop over
   `farms.getAllFarmsForUser(...)` (one transaction per farm). Resolving the
-  claimable farms with `@kamino-finance/farms-sdk` and calling the builder once
-  per farm belongs in the CLI. Keeping it out means the builder needs no
-  farms-sdk dependency and stays a single-transaction unit.
+  claimable farms is still operator-supplied for now: each CLI invocation takes
+  one `--farm-state`, `--user-state`, and `--reward-mint`.
 - **Jupiter routing** — the reward→asset swap embedded in the adaptor's
-  `additionalArgs` comes from the Jupiter HTTP API. That external call is a
-  CLI-layer helper; the builder takes the resolved swap bytes + accounts so it
-  stays pure and unit-testable. When the reward mint equals the asset mint, omit
-  the payload (no swap).
+  `additionalArgs` comes from the Jupiter HTTP API. The CLI helper resolves the
+  swap when `--swap-amount` is provided; the builder takes the resolved swap
+  bytes + accounts so it stays pure and unit-testable. When the reward mint
+  equals the asset mint or `--swap-amount` is omitted, the CLI omits the payload
+  (no swap).
 
 The `-with-index` variants are folded into the base builders via the optional
 `rewardIndex` arg: when set, the builder prepends the u64-LE index to
-`additionalArgs` and uses the `*_WITH_INDEX` discriminator.
+`additionalArgs` and uses the `*_WITH_INDEX` discriminator. The CLI exposes
+separate `*-with-index` command names because the legacy scripts had separate
+entrypoints and the ticket requires those command names.
 
 ## Profile fields
 
 Reserve and kvault addresses come from the profile
 (`integrations.kamino.reserveAddress`, `integrations.kamino.kvaultAddress`),
 not from edited TypeScript config, satisfying the "values live in profiles" rule.
-The existing `ScriptProfile` schema already carries both fields, so no profile
-schema change was required for this migration. Per-call values (amounts,
-reward index, withdraw flags, signer paths) are builder args the CLI will supply
-from flags.
+`vault:init-direct-withdraw` also reads the per-deployment
+`integrations.kamino.directWithdrawDiscriminator` field when using the default
+Kamino adaptor. Per-call values (amounts, reward index, withdraw flags, signer
+paths, reward identities, non-Kamino direct-withdraw discriminators, and swap
+settings) come from flags.
 
 ## Behavior-preservation notes
 

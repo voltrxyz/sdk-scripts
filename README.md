@@ -39,7 +39,7 @@ docs/
 - **[docs/architecture.md](./docs/architecture.md)** — read this first. Defines package responsibilities, the operation-builder contract, command naming, query vs transaction commands, web3.js isolation, where operational values live, and the step-by-step recipe for adding a new operation.
 - **[docs/migration-plan.md](./docs/migration-plan.md)** — which legacy scripts to port, in what order.
 - **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, and how to add adapter builder tests.
-- **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, and how to add adapter builder tests.
+- **[docs/kamino-migration.md](./docs/kamino-migration.md)** — migration map from legacy Kamino scripts to builders and CLI commands.
 
 ## First commands
 
@@ -122,11 +122,7 @@ pnpm cli -- --profile configs/my-vault.json check
 ```
 
 The `vault:*`, `spot:*`, and `trustful:*` builders are migrated. The
-`kamino:market:deposit` builder is migrated too, but it is imported lazily:
-`@kamino-finance/klend-sdk` currently has an unresolved transitive dependency,
-so the import is deferred into the command's action. That keeps the rest of the
-CLI — every `vault:*` command and `--help` — working; only `kamino:market:deposit`
-surfaces the dependency error, and only when it is actually run.
+`kamino:*` builders are migrated too; see [Kamino commands](#kamino-commands).
 
 ### Vault commands
 
@@ -144,9 +140,6 @@ below are the per-call values.
 | `vault:update-config` | admin | `--field <name>`, `--value <raw\|address>` |
 | `vault:accept-admin` | admin (pending) | — |
 | `vault:harvest-fee` | admin | `--manager <address>` |
-| `vault:add-adaptor` | admin | `--adaptor-program <address>` |
-| `vault:remove-adaptor` | admin | `--adaptor-program <address>` |
-| `vault:init-direct-withdraw` | admin | `--strategy <address>`, `--adaptor-program <address>`, `--discriminator <8 bytes>` |
 | `vault:deposit` | user | `--amount <raw>` |
 | `vault:request-withdraw` | user | `--amount <raw>`, `--in-lp`, `--all` |
 | `vault:cancel-request-withdraw` | user | — |
@@ -154,6 +147,9 @@ below are the per-call values.
 | `vault:instant-withdraw` | user | `--amount <raw>`, `--in-lp`, `--all` |
 | `vault:query:position` | none | `--user <address>` |
 | `vault:query:strategy-positions` | none | — |
+| `vault:add-adaptor` | admin | optional `--adaptor-program <address>` |
+| `vault:remove-adaptor` | admin | optional `--adaptor-program <address>` |
+| `vault:init-direct-withdraw` | admin | optional `--adaptor-program <address>`, `--strategy <address>`, `--discriminator <8 bytes>`, `--allow-user-args` |
 
 Role keypairs come from `--<role>-keypair` or the `<ROLE>_KEYPAIR` env var (see
 [Keypairs](#keypairs)). `vault:init` does **not** need the manager's keypair —
@@ -170,16 +166,17 @@ with a clear error — use `--mode execute`.
 while `manager` / `pending-admin` take a base58 address. `--in-lp` makes
 `--amount` an LP-token amount; `--all` withdraws the entire position.
 
-`vault:add-adaptor` / `vault:remove-adaptor` manage the vault's adaptor
-allowlist. They are generic across adapters: pass the adapter program id with
-`--adaptor-program <address>` (the program id is a flag, not a profile field, so
-one command serves every adapter). See [Trustful commands](#trustful-commands)
-for the Trustful adaptor program id.
-`vault:init-direct-withdraw` registers a direct-withdraw strategy generically —
-pass the strategy (`--strategy`; Kamino: the kvault address), the adaptor program,
-and the 8-byte discriminator as `--discriminator <8 comma-separated bytes>`. For
-the Spot Jupiter Earn strategy use [`spot:earn:init-direct-withdraw`](#spot-commands),
-which derives the strategy and adaptor program for you.
+`vault:add-adaptor`, `vault:remove-adaptor`, and
+`vault:init-direct-withdraw` default to the Kamino adaptor. Override
+`--adaptor-program` only when registering another adaptor. The default
+direct-withdraw strategy is `integrations.kamino.kvaultAddress`, and the
+instruction discriminator comes from
+`integrations.kamino.directWithdrawDiscriminator`. When overriding
+`--adaptor-program`, pass that adaptor's 8-byte discriminator explicitly with
+`--discriminator`, for example `--discriminator 1,2,3,4,5,6,7,8`. For the Spot
+Jupiter Earn strategy use [`spot:earn:init-direct-withdraw`](#spot-commands),
+which derives the strategy and adaptor program for you. See
+[Trustful commands](#trustful-commands) for the Trustful adaptor program id.
 
 #### Vault lifecycle flow
 
@@ -222,6 +219,70 @@ RPC_URL="https://your-rpc" USER_KEYPAIR=/path/user.json pnpm cli -- \
 RPC_URL="https://your-rpc" USER_KEYPAIR=/path/user.json pnpm cli -- \
   --profile configs/my-vault.json --mode execute \
   vault:withdraw
+```
+
+### Kamino commands
+
+Kamino commands use `integrations.kamino.reserveAddress` for market operations
+and `integrations.kamino.kvaultAddress` for kvault operations. Signers still
+come from flags or env vars: manager-signed strategy operations use
+`--manager-keypair` / `MANAGER_KEYPAIR`, while user direct-withdraw operations
+use `--user-keypair` / `USER_KEYPAIR`.
+
+| Command | Role | Profile strategy field | Per-call flags |
+| --- | --- | --- | --- |
+| `kamino:market:init` | manager | `reserveAddress` | — |
+| `kamino:market:deposit` | manager | `reserveAddress` | `--amount <raw>` |
+| `kamino:market:withdraw` | manager | `reserveAddress` | `--amount <raw>` |
+| `kamino:market:claim-reward` | manager | `reserveAddress` | `--reward-mint`, `--farm-state`, `--user-state`, optional `--reward-token-program`, `--swap-amount`, `--slippage-bps`, `--jupiter-max-accounts` |
+| `kamino:market:claim-reward-with-index` | manager | `reserveAddress` | claim flags above + `--reward-index <n>` |
+| `kamino:kvault:init` | manager | `kvaultAddress` | — |
+| `kamino:kvault:deposit` | manager | `kvaultAddress` | `--amount <raw>` |
+| `kamino:kvault:withdraw` | manager | `kvaultAddress` | `--amount <raw>` |
+| `kamino:kvault:claim-rewards` | manager | `kvaultAddress` | `--reward-mint`, `--farm-state`, `--user-state`, optional `--reward-token-program`, `--swap-amount`, `--slippage-bps`, `--jupiter-max-accounts` |
+| `kamino:kvault:claim-rewards-with-index` | manager | `kvaultAddress` | claim flags above + `--reward-index <n>` |
+| `kamino:user:direct-withdraw` | user | `kvaultAddress` | — |
+| `kamino:user:request-and-direct-withdraw` | user | `kvaultAddress` | `--amount <raw>`, optional `--in-lp`, `--all` |
+
+Examples:
+
+```bash
+# Register the Kamino adaptor, then bind the profile kvault for direct withdraw.
+RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:add-adaptor
+
+RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:init-direct-withdraw
+
+# Initialize and deposit into the profile's Kamino market reserve.
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  kamino:market:init
+
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  kamino:market:deposit --amount 1000000
+
+# Initialize and deposit into the profile's Kamino kvault.
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  kamino:kvault:init
+
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  kamino:kvault:deposit --amount 1000000
+
+# Claim one resolved farm reward. Omit --swap-amount when reward mint == asset.
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  kamino:market:claim-reward-with-index \
+  --reward-mint <REWARD_MINT> \
+  --farm-state <FARM_STATE> \
+  --user-state <VAULT_STRATEGY_FARM_USER_STATE> \
+  --reward-index 0 \
+  --swap-amount <RAW_REWARD_AMOUNT>
 ```
 
 ### Spot commands
@@ -398,7 +459,7 @@ Profile shape:
     "lookupTableAddress": "..."         // required when useLookupTable is true
   },
   "integrations": {
-    "kamino":   { "reserveAddress": "...", "kvaultAddress": "..." },
+    "kamino":   { "reserveAddress": "...", "kvaultAddress": "...", "directWithdrawDiscriminator": [/* 8 bytes */] },
     "spot":     { "foreignMintAddress": "...", "foreignTokenProgram": "...", "assetOracleAddress": "...", "foreignOracleAddress": "...", "directWithdrawDiscriminator": [/* 8 bytes; only for spot:earn:init-direct-withdraw */] },
     "trustful": { "strategySeedString": "..." }
   }
