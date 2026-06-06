@@ -38,6 +38,20 @@ const OptionalNonEmptyString = z.preprocess(
   NonEmptyString.optional()
 );
 
+// An 8-byte adaptor instruction discriminator, stored as a JSON array of bytes.
+// This is a per-deployment value (the legacy `directWithdrawDiscriminator`, an
+// empty placeholder operators fill in), not a fixed adapter constant. An empty
+// array — the example-template placeholder — is treated as "not provided", so a
+// template still parses; the per-command accessor enforces presence. A present
+// array must be exactly 8 bytes, each in 0..255.
+const OptionalDiscriminatorSchema = z.preprocess(
+  (value) => (Array.isArray(value) && value.length === 0 ? undefined : value),
+  z
+    .array(z.number().int().min(0).max(255))
+    .length(8, { message: "must be exactly 8 bytes, each an integer in 0..255" })
+    .optional()
+);
+
 export const VaultProfileSchema = z
   .object({
     name: OptionalNonEmptyString,
@@ -62,6 +76,8 @@ export const SpotIntegrationSchema = z
     foreignTokenProgram: OptionalAddressSchema,
     assetOracleAddress: OptionalAddressSchema,
     foreignOracleAddress: OptionalAddressSchema,
+    // Only needed by `spot:earn:init-direct-withdraw`.
+    directWithdrawDiscriminator: OptionalDiscriminatorSchema,
   })
   .strict();
 
@@ -291,6 +307,38 @@ export function requireSpotIntegration(
     assetOracle: address(section.assetOracleAddress as string),
     foreignOracle: address(section.foreignOracleAddress as string),
   };
+}
+
+/**
+ * The Spot adaptor's direct-withdraw instruction discriminator (8 bytes). This is
+ * a per-deployment value — `spot:earn:init-direct-withdraw` binds it to the
+ * derived Jupiter `lending` strategy. Kept separate from the addresses in
+ * {@link requireSpotIntegration} so swap/earn commands, which never need it, are
+ * not forced to populate it.
+ */
+export function requireSpotDirectWithdrawDiscriminator(
+  profile: ScriptProfile,
+  options?: AccessOptions
+): number[] {
+  const section = profile.integrations?.spot;
+  if (!section) {
+    throw new ProfileFieldError(profile.name, "integrations.spot", options);
+  }
+  // Treat an empty array (the example-template placeholder) as "not provided",
+  // matching the schema preprocessing — robust even for profiles built without
+  // going through `loadProfile`.
+  const discriminator = section.directWithdrawDiscriminator;
+  if (!discriminator || discriminator.length === 0) {
+    throw new ProfileFieldError(
+      profile.name,
+      "integrations.spot.directWithdrawDiscriminator",
+      {
+        ...options,
+        hint: "The 8-byte adaptor direct-withdraw discriminator for this deployment, as a JSON array of integers, e.g. [232, 204, 244, 40, 201, 192, 7, 194].",
+      }
+    );
+  }
+  return discriminator;
 }
 
 export interface TrustfulIntegrationFields {

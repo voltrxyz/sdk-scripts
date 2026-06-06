@@ -131,8 +131,10 @@ Notes:
 - Jupiter swap setup is encapsulated in `packages/spot/src/jupiter.ts`
   (`setupJupiterSwap`) and unit-tested in `jupiter.test.ts` independently of the
   CLI via an injectable `fetch`.
-- CLI command wiring for these operations is intentionally out of scope for
-  VOL-226 (tracked separately).
+- **CLI commands are wired (VOL-229)** — every builder/query above now has a
+  command in `apps/cli` (`spot:*` plus the generic `vault:add-adaptor`). See
+  [spot-migration.md](./spot-migration.md) for the full old-script → command map
+  and the new `integrations.spot.directWithdrawDiscriminator` profile field.
 
 ### Trustful
 
