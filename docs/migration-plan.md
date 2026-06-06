@@ -40,7 +40,7 @@ builder `label` equals the eventual CLI command name.
 | `user-query-position.ts` | `queryVaultPosition` (query) | `vault:query:position` | `vault/queries.ts` |
 | `query-strategy-positions.ts` | `queryStrategyPositions` (query) | `vault:query:strategy-positions` | `vault/queries.ts` |
 | `admin-init-vault.ts` | `buildInitVaultOperation` | `vault:init` | `vault/admin.ts` |
-| `admin-init-vault-and-set-token-metadata.ts` | `buildInitVaultWithMetadataOperation` | `vault:init-with-metadata` | `vault/admin.ts` |
+| `admin-init-vault-and-set-token-metadata.ts` | `buildInitVaultWithMetadataOperation` | `vault:init-and-set-token-metadata` | `vault/admin.ts` |
 | `admin-set-token-metadata.ts` | `buildSetTokenMetadataOperation` | `vault:set-token-metadata` | `vault/admin.ts` |
 | `admin-update-vault-config.ts` | `buildUpdateVaultConfigOperation` | `vault:update-config` | `vault/admin.ts` |
 | `admin-accept-vault-admin.ts` | `buildAcceptVaultAdminOperation` | `vault:accept-admin` | `vault/admin.ts` |

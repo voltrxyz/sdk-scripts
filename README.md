@@ -121,11 +121,94 @@ pnpm cli -- --profile configs/my-vault.json \
 pnpm cli -- --profile configs/my-vault.json check
 ```
 
-The `kamino:*` commands are wired into the framework but their operation
-builders are **placeholders** until the Kamino migration lands. They validate
-flags and profile fields, then fail with a clear "not migrated yet" message
-pointing at the legacy script to port. Spot and Trustful command builders have
-been migrated.
+The `vault:*`, `spot:*`, and `trustful:*` builders are migrated. The
+`kamino:market:deposit` builder is migrated too, but it is imported lazily:
+`@kamino-finance/klend-sdk` currently has an unresolved transitive dependency,
+so the import is deferred into the command's action. That keeps the rest of the
+CLI — every `vault:*` command and `--help` — working; only `kamino:market:deposit`
+surfaces the dependency error, and only when it is actually run.
+
+### Vault commands
+
+Every `vault:*` operation is listed below. All are transaction commands (they
+honor `--mode`) except the two `vault:query:*` commands, which are read-only:
+they ignore `--mode` and need no keypair. Profile-sourced values (vault address,
+asset mint, asset token program, lookup table) come from `--profile`; the flags
+below are the per-call values.
+
+| Command | Role | Per-call flags |
+| --- | --- | --- |
+| `vault:init` | admin | `--manager`, `--name`, `--max-cap` (+ optional fee/duration flags, default `0`) |
+| `vault:init-and-set-token-metadata` | admin | init flags above + `--metadata-name`, `--metadata-symbol`, `--metadata-uri` |
+| `vault:set-token-metadata` | admin | `--metadata-name`, `--metadata-symbol`, `--metadata-uri` |
+| `vault:update-config` | admin | `--field <name>`, `--value <raw\|address>` |
+| `vault:accept-admin` | admin (pending) | — |
+| `vault:harvest-fee` | admin | `--manager <address>` |
+| `vault:deposit` | user | `--amount <raw>` |
+| `vault:request-withdraw` | user | `--amount <raw>`, `--in-lp`, `--all` |
+| `vault:cancel-request-withdraw` | user | — |
+| `vault:withdraw` | user | — |
+| `vault:instant-withdraw` | user | `--amount <raw>`, `--in-lp`, `--all` |
+| `vault:query:position` | none | `--user <address>` |
+| `vault:query:strategy-positions` | none | — |
+
+Role keypairs come from `--<role>-keypair` or the `<ROLE>_KEYPAIR` env var (see
+[Keypairs](#keypairs)). `vault:init` does **not** need the manager's keypair —
+only its address via `--manager`, because the manager does not sign
+initialization. A fresh vault keypair is generated for each `vault:init*` run
+and its address is printed; record it as `vault.vaultAddress` in your profile
+after a successful `--mode execute`. Because that generated keypair must sign
+initialization, the `vault:init*` commands do **not** support `--mode multisig`
+(a multisig payload can't carry the ephemeral keypair's signature) and reject it
+with a clear error — use `--mode execute`.
+
+`vault:update-config` updates one field per call. Run `vault:update-config
+--help` for the full field list; numeric fields take a raw-integer `--value`,
+while `manager` / `pending-admin` take a base58 address. `--in-lp` makes
+`--amount` an LP-token amount; `--all` withdraws the entire position.
+
+#### Vault lifecycle flow
+
+The new-CLI equivalent of the old `voltr-base-scripts` "Basic Usage Flow"
+(editing `config/base.ts` before each run is replaced by a profile + flags):
+
+```bash
+# 1. Create a profile for the vault asset (copy an example, then edit it):
+cp configs/examples/usdc.mainnet.example.json configs/my-vault.json
+# set vault.assetMintAddress / vault.assetTokenProgram in configs/my-vault.json
+
+# 2. Initialize the vault (admin signs; manager is just an address). Preview the
+#    plan with --mode print, then --mode execute. The vault address is printed.
+RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:init --manager <MANAGER_PUBKEY> --name "My USDC Vault" --max-cap 100000000000
+
+# 3. Record the printed "Generated vault address" as vault.vaultAddress in
+#    configs/my-vault.json.
+
+# 4. (optional) Update a config field later:
+RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:update-config --field max-cap --value 200000000000
+
+# 5. Deposit as a user:
+RPC_URL="https://your-rpc" USER_KEYPAIR=/path/user.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:deposit --amount 1000000
+
+# 6. Check the position (read-only, no keypair):
+RPC_URL="https://your-rpc" pnpm cli -- \
+  --profile configs/my-vault.json \
+  vault:query:position --user <USER_PUBKEY>
+
+# 7. Withdraw — request then claim after any waiting period, or instant-withdraw:
+RPC_URL="https://your-rpc" USER_KEYPAIR=/path/user.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:request-withdraw --amount 1000000
+RPC_URL="https://your-rpc" USER_KEYPAIR=/path/user.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:withdraw
+```
 
 ### Global options
 

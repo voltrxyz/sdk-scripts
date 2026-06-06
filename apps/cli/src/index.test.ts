@@ -13,6 +13,7 @@ const execFileAsync = promisify(execFile);
 
 const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+const SYSTEM = "11111111111111111111111111111111";
 
 interface Harness {
   program: Command;
@@ -124,6 +125,229 @@ test("vault:deposit surfaces a missing profile field before any network/keypair 
         ]),
       /vault\.vaultAddress/
     );
+  });
+});
+
+test("--help lists the full vault command surface", async () => {
+  const { program, output } = harness();
+  await assert.rejects(() => parse(program, ["--help"]));
+  const text = output();
+  for (const cmd of [
+    "vault:init",
+    "vault:init-and-set-token-metadata",
+    "vault:set-token-metadata",
+    "vault:update-config",
+    "vault:accept-admin",
+    "vault:harvest-fee",
+    "vault:request-withdraw",
+    "vault:cancel-request-withdraw",
+    "vault:withdraw",
+    "vault:instant-withdraw",
+    "vault:query:position",
+    "vault:query:strategy-positions",
+  ]) {
+    assert.ok(text.includes(cmd), `--help should list ${cmd}`);
+  }
+});
+
+test("vault:init requires --manager, --name, and --max-cap", async () => {
+  const incompleteFlagSets = [
+    ["--name", "V", "--max-cap", "1"], // missing --manager
+    ["--manager", USDC, "--max-cap", "1"], // missing --name
+    ["--manager", USDC, "--name", "V"], // missing --max-cap
+  ];
+  for (const flags of incompleteFlagSets) {
+    const { program } = harness();
+    await assert.rejects(() =>
+      parse(program, ["--profile", "p.json", "vault:init", ...flags])
+    );
+  }
+});
+
+test("vault:harvest-fee requires --manager", async () => {
+  const { program } = harness();
+  await assert.rejects(() =>
+    parse(program, ["--profile", "p.json", "vault:harvest-fee"])
+  );
+});
+
+test("vault:query:position requires --user", async () => {
+  const { program } = harness();
+  await assert.rejects(() =>
+    parse(program, ["--profile", "p.json", "vault:query:position"])
+  );
+});
+
+test("vault:request-withdraw requires --amount", async () => {
+  const { program } = harness();
+  await assert.rejects(() =>
+    parse(program, ["--profile", "p.json", "vault:request-withdraw"])
+  );
+});
+
+test("vault:withdraw surfaces a missing profile field before any network/keypair I/O", async () => {
+  // Valid profile without vaultAddress -> requireVaultAddress should throw
+  // before createScriptContext dials anything or the keypair file is touched.
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "--mode",
+          "print",
+          "vault:withdraw",
+          "--user-keypair",
+          "/nonexistent/user.json",
+        ]),
+      /vault\.vaultAddress/
+    );
+  });
+});
+
+test("vault:update-config rejects an unknown --field before loading a keypair", async () => {
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: {
+      assetMintAddress: USDC,
+      assetTokenProgram: TOKEN_PROGRAM,
+      vaultAddress: SYSTEM,
+    },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "vault:update-config",
+          "--field",
+          "bogus-field",
+          "--value",
+          "1",
+        ]),
+      /Unknown vault config field/
+    );
+  });
+});
+
+test("vault:update-config rejects an out-of-range u16 --value", async () => {
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: {
+      assetMintAddress: USDC,
+      assetTokenProgram: TOKEN_PROGRAM,
+      vaultAddress: SYSTEM,
+    },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "vault:update-config",
+          "--field",
+          "redemption-fee",
+          "--value",
+          "70000",
+        ]),
+      /u16/
+    );
+  });
+});
+
+test("vault:init rejects a non-numeric --max-cap", async () => {
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "vault:init",
+          "--manager",
+          USDC,
+          "--name",
+          "V",
+          "--max-cap",
+          "abc",
+        ]),
+      /max-cap must be/
+    );
+  });
+});
+
+test("vault:init* reject --mode multisig even when fully specified", async () => {
+  // The init commands generate an ephemeral vault keypair that must sign; a
+  // multisig payload (no signatures, placeholder blockhash) can never carry that
+  // signature, so the mode is rejected before a throwaway keypair is generated —
+  // even with a valid --multisig-address present.
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
+  });
+  const invocations = [
+    ["vault:init", "--manager", USDC, "--name", "V", "--max-cap", "1"],
+    [
+      "vault:init-and-set-token-metadata",
+      "--manager",
+      USDC,
+      "--name",
+      "V",
+      "--max-cap",
+      "1",
+      "--metadata-name",
+      "LP",
+      "--metadata-symbol",
+      "LP",
+      "--metadata-uri",
+      "https://example.com/lp.json",
+    ],
+  ];
+
+  await withTempProfile(profile, async (profilePath) => {
+    for (const invocation of invocations) {
+      const { program } = harness();
+      await assert.rejects(
+        () =>
+          parse(program, [
+            "--profile",
+            profilePath,
+            "--mode",
+            "multisig",
+            "--multisig-address",
+            SYSTEM,
+            ...invocation,
+          ]),
+        /does not support --mode multisig/
+      );
+    }
   });
 });
 

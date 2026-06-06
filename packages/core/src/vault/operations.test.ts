@@ -300,7 +300,7 @@ test("init builders thread an existing lookup table through, like the others", a
     lpTokenMetadata: { name: "LP", symbol: "LP", uri: "" },
   });
   assertBuiltOperationShape(withMeta, {
-    label: "vault:init-with-metadata",
+    label: "vault:init-and-set-token-metadata",
     minInstructions: 2,
   });
   assert.equal(withMeta.instructions.length, 2);

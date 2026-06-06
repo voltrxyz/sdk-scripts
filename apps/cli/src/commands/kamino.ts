@@ -8,22 +8,27 @@ import {
   requireVaultAddress,
   resolveLookupTableAddresses,
 } from "@voltr/scripts-core";
-import { buildKaminoDepositMarketOperation } from "@voltr/scripts-kamino";
 import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
 import { loadRoleSigner } from "../lib/signers.js";
 
+// NOTE: `@voltr/scripts-kamino` pulls in `@kamino-finance/klend-sdk`, whose
+// transitive deps can fail to resolve in some environments. Import the builder
+// lazily inside the action so a broken adapter dependency only affects this
+// command at runtime, not CLI startup (which would otherwise break `--help`
+// and every other group's commands too).
+
 /**
- * Kamino strategies (`kamino:*`). The operation builders are placeholders until
- * the Kamino migration lands; the commands are wired against the real framework
- * path (validate profile → load signer → build → process) so adding the logic
- * later is a one-file change in `packages/kamino`.
+ * Kamino strategies (`kamino:*`). Each command follows the framework path
+ * (validate profile → load signer → build → process); the market deposit
+ * builder is migrated in `packages/kamino`, and further strategies are added by
+ * registering one command per builder here.
  */
 export function registerKaminoCommands(program: Command): void {
   program
     .command("kamino:market:deposit")
-    .summary("deposit vault assets into a Kamino market [not migrated]")
+    .summary("deposit vault assets into a Kamino lending market")
     .description(
-      "Deposit vault assets into a Kamino lending market.\nPlaceholder: the operation builder is not migrated yet."
+      "Deposit vault assets into a Kamino lending market via the Voltr Kamino adaptor."
     )
     .option(
       "--manager-keypair <path>",
@@ -45,7 +50,10 @@ export function registerKaminoCommands(program: Command): void {
       const processorOptions = resolveProcessorOptions(globals);
       const manager = await loadRoleSigner("manager", options.managerKeypair);
 
-      const operation = await buildKaminoDepositMarketOperation(ctx, {
+      const { buildKaminoMarketDepositOperation } = await import(
+        "@voltr/scripts-kamino"
+      );
+      const operation = await buildKaminoMarketDepositOperation(ctx, {
         manager,
         vault,
         assetMint,
