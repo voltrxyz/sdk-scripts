@@ -93,22 +93,45 @@ Then, in any order:
 - `user-request-and-direct-withdraw-strategy.ts` → `kamino:user:request-and-direct-withdraw`
 - `query-strategy-positions.ts` → `kamino:query:strategy-positions` (query)
 
-### Spot
+### Spot (done — VOL-226)
 
-Reference: `/Users/shayn/Desktop/voltr/voltr-spot-scripts/src/scripts/`. Target package: `packages/spot/src/operations/`.
+Reference: `/Users/shayn/Desktop/voltr/voltr-spot-scripts/src/scripts/`. Target package: `packages/spot/`.
 
-Good first migration: `manager-initialize-spot.ts` → `spot:spot:init` (placeholder pattern in `packages/spot/src/operations/spot.ts`).
+Spot/Jupiter-specific PDA derivation, Jupiter swap setup, oracle remaining accounts,
+and earn logic now live in `packages/spot`. Operational values come from profile
+fields (`integrations.spot.*`, `vault.*`) and CLI args (amount, slippage, Jupiter
+max accounts) — `config/spot.ts` and `config/base.ts` are no longer used. Jupiter
+program IDs, the adaptor program ID, seeds, and discriminators live in
+`packages/spot/src/constants.ts`. The package stays 100% `@solana/kit` (Jupiter is
+a REST API, not a web3.js SDK), so no web3.js types are pulled in.
 
-Then, in any order:
+| Legacy script | New command | Builder / query |
+| --- | --- | --- |
+| `manager-initialize-spot.ts` | `spot:spot:init` | `buildSpotInitOperation` (`operations/spot.ts`) |
+| `manager-buy-spot.ts` | `spot:spot:buy` | `buildSpotBuyOperation` (`operations/spot.ts`) |
+| `manager-sell-spot.ts` | `spot:spot:sell` | `buildSpotSellOperation` (`operations/spot.ts`) |
+| `manager-initialize-earn.ts` (tx 1) | `spot:earn:init` | `buildSpotEarnInitOperation` (`operations/earn.ts`) |
+| `manager-initialize-earn.ts` (tx 2, optional LUT) | `spot:earn:extend-lut` | `buildSpotEarnExtendLookupTableOperation` (`operations/earn.ts`) |
+| `manager-deposit-earn.ts` | `spot:earn:deposit` | `buildSpotEarnDepositOperation` (`operations/earn.ts`) |
+| `manager-withdraw-earn.ts` | `spot:earn:withdraw` | `buildSpotEarnWithdrawOperation` (`operations/earn.ts`) |
+| `query-strategy-positions.ts` | `spot:query:strategy-positions` | `querySpotStrategyPositions` (`queries/strategy-positions.ts`) |
+| `admin-add-adaptor.ts` | `spot:admin:add-adaptor` | Deferred to VOL-224 (generic adaptor admin helper). |
+| `admin-init-direct-withdraw.ts` | `spot:admin:init-direct-withdraw` | Deferred to VOL-224. |
 
-- `manager-buy-spot.ts` → `spot:spot:buy`
-- `manager-sell-spot.ts` → `spot:spot:sell`
-- `manager-initialize-earn.ts` → `spot:earn:init`
-- `manager-deposit-earn.ts` → `spot:earn:deposit`
-- `manager-withdraw-earn.ts` → `spot:earn:withdraw`
-- `admin-add-adaptor.ts` → `spot:admin:add-adaptor`
-- `admin-init-direct-withdraw.ts` → `spot:admin:init-direct-withdraw`
-- `query-strategy-positions.ts` → `spot:query:strategy-positions` (query)
+Notes:
+
+- `manager-initialize-earn.ts` was a two-transaction flow (init strategy, then
+  extend the lookup table). Per the "one builder, one operation" rule it splits
+  into `spot:earn:init` and `spot:earn:extend-lut`.
+- **`spot:spot:sell` corrects a latent bug.** The legacy `manager-sell-spot.ts`
+  passed `amountIn = 0` (and the asset→foreign direction) to its Jupiter helper,
+  so it never actually built a swap. `buildSpotSellOperation` implements the
+  intended behavior — a foreign→asset swap of `amount`, symmetric with buy.
+- Jupiter swap setup is encapsulated in `packages/spot/src/jupiter.ts`
+  (`setupJupiterSwap`) and unit-tested in `jupiter.test.ts` independently of the
+  CLI via an injectable `fetch`.
+- CLI command wiring for these operations is intentionally out of scope for
+  VOL-226 (tracked separately).
 
 ### Trustful
 
