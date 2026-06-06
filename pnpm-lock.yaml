@@ -92,12 +92,18 @@ importers:
 
   packages/trustful:
     dependencies:
+      '@solana-program/token':
+        specifier: ^0.13.0
+        version: 0.13.0(@solana/kit@6.9.0(typescript@5.9.3))
       '@solana/kit':
         specifier: ^6.8.0
         version: 6.9.0(typescript@5.9.3)
       '@voltr/scripts-core':
         specifier: workspace:*
         version: link:../core
+      '@voltr/vault-sdk':
+        specifier: ^2.0.0
+        version: 2.1.0(@solana/kit@6.9.0(typescript@5.9.3))(typescript@5.9.3)
 
 packages:
 

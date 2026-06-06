@@ -49,7 +49,24 @@ function runPrintMode(operation: BuiltOperation): ProcessResult {
     lookupTableAddresses,
   };
   console.log(JSON.stringify(summary, null, 2));
+  logOperationMetadata(operation);
   return { mode: "print", ...summary };
+}
+
+/**
+ * Print a builder's structured {@link BuiltOperation.metadata} (e.g. the
+ * Trustful "withdrawal holding account") so important operator-facing values the
+ * legacy scripts used to `console.log` survive the migration. Side-effect free
+ * and independent of the `ProcessResult` shape.
+ */
+function logOperationMetadata(operation: BuiltOperation): void {
+  if (!operation.metadata) return;
+  const entries = Object.entries(operation.metadata);
+  if (entries.length === 0) return;
+  console.log(`${operation.label} metadata:`);
+  for (const [key, value] of entries) {
+    console.log(`  ${key}: ${value}`);
+  }
 }
 
 async function runSimulateMode(
@@ -136,6 +153,7 @@ async function runExecuteMode(
   });
 
   console.log(`${operation.label} signature: ${signature}`);
+  logOperationMetadata(operation);
   return { mode: "execute", signature, computeUnitsConsumed };
 }
 
