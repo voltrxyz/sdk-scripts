@@ -19,8 +19,8 @@ Builders follow the operation-builder contract in
 | `manager-borrow-curve.ts`        | `buildTrustfulCurveBorrowOperation`        | `trustful:curve:borrow`      | Borrow draws from the vault → vault SDK `deposit_strategy` with `BORROW_CURVE`; borrow rate → `additional_args`. |
 | `manager-repay-curve.ts`         | `buildTrustfulCurveRepayOperation`         | `trustful:curve:repay`       | Two ix: adaptor `transfer_curve` (hand-built) + vault SDK `withdraw_strategy` with `REPAY_CURVE`. Strategy seed corrected — see [Curve strategy seed](#curve-strategy-seed-repay-correction). |
 | `manager-remove-curve.ts`        | `buildTrustfulCurveRemoveOperation`        | `trustful:curve:remove`      | `close_strategy`. |
-| `admin-add-adaptor.ts`           | — (skipped, see below)                     | `trustful:admin:add-adaptor` | **Deferred to VOL-224** — generic adapter admin helper. |
-| `admin-remove-adaptor.ts`        | — (skipped, see below)                     | `trustful:admin:remove-adaptor` | **Deferred to VOL-224** — generic adapter admin helper. |
+| `admin-add-adaptor.ts`           | `buildAddAdaptorOperation` (core, VOL-224) | `vault:add-adaptor` | Generic adapter admin helper (see below). CLI wired in VOL-230: `vault:add-adaptor --adaptor-program <TRUSTFUL_ADAPTOR_PROGRAM_ID>`. |
+| `admin-remove-adaptor.ts`        | `buildRemoveAdaptorOperation` (core, VOL-224) | `vault:remove-adaptor` | Generic adapter admin helper (see below). CLI wired in VOL-230: `vault:remove-adaptor --adaptor-program <TRUSTFUL_ADAPTOR_PROGRAM_ID>`. |
 
 The remaining legacy scripts (`admin-*-vault*`, `user-*-vault`, `query-*`,
 `user-query-position`) are vault-level, not Trustful-specific, and are tracked
@@ -105,6 +105,11 @@ parameterized only by `adaptorProgram = TRUSTFUL_ADAPTOR_PROGRAM_ID`. They are
 the "generic adapter admin helper migration" explicitly placed **out of scope**
 for VOL-227 and **covered by VOL-224**. `TRUSTFUL_ADAPTOR_PROGRAM_ID` is exported
 from this package so that work can consume it without duplicating the ID.
+
+VOL-230 wired the CLI for those generic builders as `vault:add-adaptor` /
+`vault:remove-adaptor`, which take the adaptor program as a `--adaptor-program`
+flag (pass `TRUSTFUL_ADAPTOR_PROGRAM_ID` for the Trustful adaptor) rather than a
+`trustful:`-prefixed command, since the operation is adapter-agnostic.
 
 ### Structured metadata (preserving user-facing output)
 

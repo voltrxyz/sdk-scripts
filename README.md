@@ -115,7 +115,7 @@ pnpm cli -- --profile configs/my-vault.json \
 
 # trustful: borrow against a curve strategy
 pnpm cli -- --profile configs/my-vault.json \
-  trustful:curve:borrow --amount 1000000
+  trustful:curve:borrow --amount 1000000 --borrow-rate-bps 50
 
 # check: validate a profile and print a configuration summary (no network)
 pnpm cli -- --profile configs/my-vault.json check
@@ -170,8 +170,11 @@ with a clear error — use `--mode execute`.
 while `manager` / `pending-admin` take a base58 address. `--in-lp` makes
 `--amount` an LP-token amount; `--all` withdraws the entire position.
 
-`vault:add-adaptor` / `vault:remove-adaptor` register or deregister an adaptor
-program on the vault (pass the adapter program id with `--adaptor-program`).
+`vault:add-adaptor` / `vault:remove-adaptor` manage the vault's adaptor
+allowlist. They are generic across adapters: pass the adapter program id with
+`--adaptor-program <address>` (the program id is a flag, not a profile field, so
+one command serves every adapter). See [Trustful commands](#trustful-commands)
+for the Trustful adaptor program id.
 `vault:init-direct-withdraw` registers a direct-withdraw strategy generically —
 pass the strategy (`--strategy`; Kamino: the kvault address), the adaptor program,
 and the 8-byte discriminator as `--discriminator <8 comma-separated bytes>`. For
@@ -289,6 +292,59 @@ Before the manager can route through Spot, the admin must register the adaptor
 once with `vault:add-adaptor --adaptor-program <SPOT_ADAPTOR_PROGRAM_ID>` (see the
 [Vault commands](#vault-commands) table). The full old-script → command map is in
 [docs/spot-migration.md](./docs/spot-migration.md).
+
+### Trustful commands
+
+The `trustful:*` commands operate the Trustful adaptor's two strategy families:
+an operator-named **arbitrary** strategy and a per-vault singleton **curve**
+strategy. All are manager-signed transaction commands (they honor `--mode`).
+Profile-sourced values (vault address, asset mint/token program, lookup table,
+and — for the arbitrary commands — `integrations.trustful.strategySeedString`)
+come from `--profile`; the flags below are the per-call values.
+
+| Command | Role | Per-call flags |
+| --- | --- | --- |
+| `trustful:arbitrary:init` | manager | — |
+| `trustful:arbitrary:deposit` | manager | `--amount <raw>`, `--destination <address>`, `--position-value-after <raw>` |
+| `trustful:arbitrary:withdraw` | manager | `--amount <raw>`, `--position-value-after <raw>` |
+| `trustful:curve:init` | manager | — |
+| `trustful:curve:borrow` | manager | `--amount <raw>`, `--borrow-rate-bps <bps>` |
+| `trustful:curve:repay` | manager | `--amount <raw>`, `--borrow-rate-bps <bps>` |
+| `trustful:curve:remove` | manager | — |
+
+The arbitrary strategy is named by `integrations.trustful.strategySeedString`;
+the curve strategy is a singleton seeded by the adaptor's fixed `"curve"`
+constant, so the curve commands take no seed flag. `trustful:arbitrary:deposit`
+prints the **withdrawal-holding account** you must return strategy assets to
+before running `trustful:arbitrary:withdraw` (preserved from the old deposit
+script's output).
+
+Registering the Trustful adaptor on a vault is a one-time admin step using the
+generic `vault:add-adaptor` command with the Trustful adaptor program id
+(`3pnpK9nrs1R65eMV1wqCXkDkhSgN18xb1G5pgYPwoZjJ`):
+
+```bash
+# admin: allow the Trustful adaptor on the vault (one-time, before init)
+RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:add-adaptor --adaptor-program 3pnpK9nrs1R65eMV1wqCXkDkhSgN18xb1G5pgYPwoZjJ
+
+# arbitrary: deposit vault assets into the named strategy (manager signs). The
+# command prints the holding account to return assets to before withdrawing.
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  trustful:arbitrary:deposit --amount 1000000 \
+  --destination <DESTINATION_TOKEN_ACCOUNT> --position-value-after 1000000
+
+# curve: borrow against the curve strategy (manager signs)
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  trustful:curve:borrow --amount 1000000 --borrow-rate-bps 50
+```
+
+Each old `voltr-trustful-scripts` script maps to one new command — see
+[packages/trustful/MIGRATION.md](./packages/trustful/MIGRATION.md) for the full
+script → builder → command map.
 
 ### Global options
 
