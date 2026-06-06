@@ -5,9 +5,13 @@ import {
   TOKEN_PROGRAM_ADDRESS,
 } from "@solana-program/token";
 import {
+  findRequestWithdrawVaultReceiptPda,
+  findVaultLpMintPda,
   findVaultStrategyAuthPda,
   getDepositStrategyInstructionAsync,
+  getDirectWithdrawStrategyInstructionAsync,
   getInitializeStrategyInstructionAsync,
+  getRequestWithdrawVaultInstructionAsync,
   getWithdrawStrategyInstructionAsync,
 } from "@voltr/vault-sdk";
 import {
@@ -265,7 +269,7 @@ export async function buildKaminoKvaultWithdrawOperation(
   };
 }
 
-export interface KaminoKvaultClaimRewardsArgs {
+export interface KaminoKvaultClaimRewardArgs {
   manager: KeyPairSigner;
   vault: Address;
   assetMint: Address;
@@ -291,7 +295,7 @@ export interface KaminoKvaultClaimRewardsArgs {
 }
 
 /**
- * `kamino:kvault:claim-rewards` — claim a Kamino vault farm reward into the
+ * `kamino:kvault:claim-reward` — claim a Kamino vault farm reward into the
  * vault asset for one farm. Migrated from `manager-claim-kvault-rewards.ts` and
  * `manager-claim-kvault-rewards-with-index.ts` (via the optional `rewardIndex`).
  *
@@ -299,9 +303,9 @@ export interface KaminoKvaultClaimRewardsArgs {
  * claimable farms (farms SDK) and building the Jupiter route are CLI-layer
  * concerns; see the migration docs.
  */
-export async function buildKaminoKvaultClaimRewardsOperation(
+export async function buildKaminoKvaultClaimRewardOperation(
   ctx: ScriptContext,
-  args: KaminoKvaultClaimRewardsArgs
+  args: KaminoKvaultClaimRewardArgs
 ): Promise<BuiltOperation> {
   const strategy = args.kvault;
   const [vaultStrategyAuth] = await findVaultStrategyAuthPda({
@@ -386,12 +390,209 @@ export async function buildKaminoKvaultClaimRewardsOperation(
   );
 
   return {
-    label: "kamino:kvault:claim-rewards",
+    // The base and `-with-index` CLI variants build different adaptor
+    // discriminators, so the label reflects which one ran (command == label).
+    label:
+      args.rewardIndex === undefined
+        ? "kamino:kvault:claim-reward"
+        : "kamino:kvault:claim-reward-with-index",
     instructions,
     lookupTableAddresses: [
       ...(args.lookupTableAddresses ?? []),
       vaultLookupTable,
       ...(args.jupiterSwap?.lookupTableAddresses ?? []),
+    ],
+  };
+}
+
+export interface KaminoKvaultDirectWithdrawArgs {
+  /** User keypair; the withdraw transfer authority. */
+  user: KeyPairSigner;
+  vault: Address;
+  assetMint: Address;
+  assetTokenProgram: Address;
+  /** Kamino vault (kvault) address; used as the Voltr strategy id. */
+  kvault: Address;
+  lookupTableAddresses?: Address[];
+}
+
+/**
+ * `kamino:kvault:direct-withdraw` — a user directly withdraws their share of a
+ * Kamino vault (kvault) strategy. Migrated from `user-direct-withdraw-strategy.ts`.
+ */
+export async function buildKaminoKvaultDirectWithdrawOperation(
+  ctx: ScriptContext,
+  args: KaminoKvaultDirectWithdrawArgs
+): Promise<BuiltOperation> {
+  const strategy = args.kvault;
+  const [vaultStrategyAuth] = await findVaultStrategyAuthPda({
+    vault: args.vault,
+    strategy,
+  });
+
+  const instructions: Instruction[] = [];
+  await setupTokenAccount({
+    rpc: ctx.rpc,
+    payer: args.user,
+    mint: args.assetMint,
+    owner: vaultStrategyAuth,
+    instructions,
+    tokenProgram: args.assetTokenProgram,
+  });
+  await setupTokenAccount({
+    rpc: ctx.rpc,
+    payer: args.user,
+    mint: args.assetMint,
+    owner: args.user.address,
+    instructions,
+    tokenProgram: args.assetTokenProgram,
+  });
+
+  const { sharesMint, remaining, vaultLookupTable } =
+    await buildKvaultWithdrawAccounts(ctx.rpc, {
+      kvault: args.kvault,
+      assetMint: args.assetMint,
+      vaultStrategyAuth,
+    });
+
+  await setupTokenAccount({
+    rpc: ctx.rpc,
+    payer: args.user,
+    mint: sharesMint,
+    owner: vaultStrategyAuth,
+    instructions,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
+
+  const directWithdrawIx = await getDirectWithdrawStrategyInstructionAsync({
+    userTransferAuthority: args.user,
+    vault: args.vault,
+    strategy,
+    vaultAssetMint: args.assetMint,
+    adaptorProgram: KAMINO_ADAPTOR_PROGRAM_ID,
+    assetTokenProgram: args.assetTokenProgram,
+    userArgs: null,
+  });
+  instructions.push(withRemainingAccounts(directWithdrawIx, remaining));
+
+  return {
+    label: "kamino:kvault:direct-withdraw",
+    instructions,
+    lookupTableAddresses: [
+      ...(args.lookupTableAddresses ?? []),
+      vaultLookupTable,
+    ],
+  };
+}
+
+export interface KaminoKvaultRequestAndDirectWithdrawArgs {
+  /** User keypair; payer and withdraw transfer authority. */
+  user: KeyPairSigner;
+  vault: Address;
+  assetMint: Address;
+  assetTokenProgram: Address;
+  /** Kamino vault (kvault) address; used as the Voltr strategy id. */
+  kvault: Address;
+  /** Amount to request to withdraw (raw units; LP or asset per `isAmountInLp`). */
+  withdrawAmount: bigint;
+  isAmountInLp: boolean;
+  isWithdrawAll: boolean;
+  lookupTableAddresses?: Address[];
+}
+
+/**
+ * `kamino:kvault:request-and-direct-withdraw` — request a vault withdrawal and
+ * directly withdraw from the Kamino vault (kvault) strategy in one transaction.
+ * Migrated from `user-request-and-direct-withdraw-strategy.ts`.
+ */
+export async function buildKaminoKvaultRequestAndDirectWithdrawOperation(
+  ctx: ScriptContext,
+  args: KaminoKvaultRequestAndDirectWithdrawArgs
+): Promise<BuiltOperation> {
+  const instructions: Instruction[] = [];
+
+  // 1. Request withdraw: ensure the receipt's LP token account exists, then
+  //    record the withdrawal request.
+  const [vaultLpMint] = await findVaultLpMintPda({ vault: args.vault });
+  const [requestWithdrawVaultReceipt] =
+    await findRequestWithdrawVaultReceiptPda({
+      vault: args.vault,
+      userTransferAuthority: args.user.address,
+    });
+  await setupTokenAccount({
+    rpc: ctx.rpc,
+    payer: args.user,
+    mint: vaultLpMint,
+    owner: requestWithdrawVaultReceipt,
+    instructions,
+  });
+  instructions.push(
+    await getRequestWithdrawVaultInstructionAsync({
+      payer: args.user,
+      userTransferAuthority: args.user,
+      vault: args.vault,
+      amount: args.withdrawAmount,
+      isAmountInLp: args.isAmountInLp,
+      isWithdrawAll: args.isWithdrawAll,
+    })
+  );
+
+  // 2. Direct withdraw from the Kamino vault strategy.
+  const strategy = args.kvault;
+  const [vaultStrategyAuth] = await findVaultStrategyAuthPda({
+    vault: args.vault,
+    strategy,
+  });
+  await setupTokenAccount({
+    rpc: ctx.rpc,
+    payer: args.user,
+    mint: args.assetMint,
+    owner: vaultStrategyAuth,
+    instructions,
+    tokenProgram: args.assetTokenProgram,
+  });
+  await setupTokenAccount({
+    rpc: ctx.rpc,
+    payer: args.user,
+    mint: args.assetMint,
+    owner: args.user.address,
+    instructions,
+    tokenProgram: args.assetTokenProgram,
+  });
+
+  const { sharesMint, remaining, vaultLookupTable } =
+    await buildKvaultWithdrawAccounts(ctx.rpc, {
+      kvault: args.kvault,
+      assetMint: args.assetMint,
+      vaultStrategyAuth,
+    });
+
+  await setupTokenAccount({
+    rpc: ctx.rpc,
+    payer: args.user,
+    mint: sharesMint,
+    owner: vaultStrategyAuth,
+    instructions,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
+
+  const directWithdrawIx = await getDirectWithdrawStrategyInstructionAsync({
+    userTransferAuthority: args.user,
+    vault: args.vault,
+    strategy,
+    vaultAssetMint: args.assetMint,
+    adaptorProgram: KAMINO_ADAPTOR_PROGRAM_ID,
+    assetTokenProgram: args.assetTokenProgram,
+    userArgs: null,
+  });
+  instructions.push(withRemainingAccounts(directWithdrawIx, remaining));
+
+  return {
+    label: "kamino:kvault:request-and-direct-withdraw",
+    instructions,
+    lookupTableAddresses: [
+      ...(args.lookupTableAddresses ?? []),
+      vaultLookupTable,
     ],
   };
 }

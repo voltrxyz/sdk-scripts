@@ -93,7 +93,7 @@ profile.
 | ------------ | --------------------------------------- | --------------- |
 | `vault:*`    | shared Voltr vault operations           | `vault:deposit` |
 | `kamino:*`   | Kamino market / kvault strategies       | `kamino:market:deposit` |
-| `spot:*`     | Spot / Earn strategies                  | `spot:spot:buy` |
+| `spot:*`     | Spot swap / Earn strategies             | `spot:swap:buy` |
 | `trustful:*` | Trustful arbitrary / curve strategies   | `trustful:curve:borrow` |
 | `check`      | validate a profile (maintenance)        | `check` |
 
@@ -111,7 +111,7 @@ pnpm cli -- --profile configs/my-vault.json \
 
 # spot: buy the foreign asset via a spot swap
 pnpm cli -- --profile configs/my-vault.json \
-  spot:spot:buy --amount 1000000 --slippage-bps 50
+  spot:swap:buy --amount 1000000 --slippage-bps 50
 
 # trustful: borrow against a curve strategy
 pnpm cli -- --profile configs/my-vault.json \
@@ -239,10 +239,10 @@ use `--user-keypair` / `USER_KEYPAIR`.
 | `kamino:kvault:init` | manager | `kvaultAddress` | — |
 | `kamino:kvault:deposit` | manager | `kvaultAddress` | `--amount <raw>` |
 | `kamino:kvault:withdraw` | manager | `kvaultAddress` | `--amount <raw>` |
-| `kamino:kvault:claim-rewards` | manager | `kvaultAddress` | `--reward-mint`, `--farm-state`, `--user-state`, optional `--reward-token-program`, `--swap-amount`, `--slippage-bps`, `--jupiter-max-accounts` |
-| `kamino:kvault:claim-rewards-with-index` | manager | `kvaultAddress` | claim flags above + `--reward-index <n>` |
-| `kamino:user:direct-withdraw` | user | `kvaultAddress` | — |
-| `kamino:user:request-and-direct-withdraw` | user | `kvaultAddress` | `--amount <raw>`, optional `--in-lp`, `--all` |
+| `kamino:kvault:claim-reward` | manager | `kvaultAddress` | `--reward-mint`, `--farm-state`, `--user-state`, optional `--reward-token-program`, `--swap-amount`, `--slippage-bps`, `--jupiter-max-accounts` |
+| `kamino:kvault:claim-reward-with-index` | manager | `kvaultAddress` | claim flags above + `--reward-index <n>` |
+| `kamino:kvault:direct-withdraw` | user | `kvaultAddress` | — |
+| `kamino:kvault:request-and-direct-withdraw` | user | `kvaultAddress` | `--amount <raw>`, optional `--in-lp`, `--all` |
 
 Examples:
 
@@ -287,7 +287,7 @@ RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
 
 ### Spot commands
 
-Spot covers two strategy domains under one adaptor: `spot:spot:*` (swap the vault
+Spot covers two strategy domains under one adaptor: `spot:swap:*` (swap the vault
 asset into/out of a foreign asset via Jupiter) and `spot:earn:*` (Jupiter Earn
 lending). All are transaction commands except `spot:query:strategy-positions`,
 which is read-only. Profile-sourced values come from `--profile`; the flags below
@@ -295,9 +295,9 @@ are the per-call values.
 
 | Command | Role | Per-call flags |
 | --- | --- | --- |
-| `spot:spot:init` | manager | — |
-| `spot:spot:buy` | manager | `--amount <raw>`, `--slippage-bps <bps>` (+ optional `--jupiter-max-accounts`, `--minimum-threshold-amount-out`) |
-| `spot:spot:sell` | manager | `--amount <raw>`, `--slippage-bps <bps>` (+ optional `--jupiter-max-accounts`, `--minimum-threshold-amount-out`) |
+| `spot:swap:init` | manager | — |
+| `spot:swap:buy` | manager | `--amount <raw>`, `--slippage-bps <bps>` (+ optional `--jupiter-max-accounts`, `--minimum-threshold-amount-out`) |
+| `spot:swap:sell` | manager | `--amount <raw>`, `--slippage-bps <bps>` (+ optional `--jupiter-max-accounts`, `--minimum-threshold-amount-out`) |
 | `spot:earn:init` | manager | — |
 | `spot:earn:deposit` | manager | `--amount <raw>` |
 | `spot:earn:withdraw` | manager | `--amount <raw>` |
@@ -305,12 +305,12 @@ are the per-call values.
 | `spot:earn:init-direct-withdraw` | admin | — (reads `integrations.spot.directWithdrawDiscriminator`) |
 | `spot:query:strategy-positions` | none | — |
 
-The `spot:spot:*` commands read the foreign mint, foreign token program, and both
-Pyth oracle addresses from `integrations.spot.*`; `spot:spot:buy` / `spot:spot:sell`
+The `spot:swap:*` commands read the foreign mint, foreign token program, and both
+Pyth oracle addresses from `integrations.spot.*`; `spot:swap:buy` / `spot:swap:sell`
 build their swap through the Jupiter API. The `spot:earn:*` deposit/withdraw
 commands act on the vault asset only. `spot:earn:init` initializes the Jupiter Earn
-strategy; run `spot:earn:extend-lut` afterwards if you use a lookup table (it ports
-the legacy earn-init flow's optional second transaction). `spot:earn:init-direct-withdraw`
+strategy; run `spot:earn:extend-lut` afterwards if you use a lookup table.
+`spot:earn:init-direct-withdraw`
 registers Earn as a vault direct-withdraw strategy and needs the 8-byte
 `integrations.spot.directWithdrawDiscriminator` (a per-deployment value).
 `spot:query:strategy-positions` augments each Voltr strategy's position value with
@@ -320,15 +320,15 @@ the strategy's current raw foreign-token balance where available.
 # Spot: initialize the swap strategy, then buy / sell the foreign asset
 RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
   --profile configs/my-vault.json --mode execute \
-  spot:spot:init
+  spot:swap:init
 
 RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
   --profile configs/my-vault.json --mode execute \
-  spot:spot:buy --amount 1000000 --slippage-bps 50
+  spot:swap:buy --amount 1000000 --slippage-bps 50
 
 RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
   --profile configs/my-vault.json --mode execute \
-  spot:spot:sell --amount 1000000 --slippage-bps 50 --jupiter-max-accounts 16
+  spot:swap:sell --amount 1000000 --slippage-bps 50 --jupiter-max-accounts 16
 
 # Jupiter Earn: initialize, then deposit / withdraw the vault asset
 RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \

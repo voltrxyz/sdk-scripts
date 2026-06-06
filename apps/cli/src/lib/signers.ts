@@ -1,3 +1,4 @@
+import type { Command } from "commander";
 import { loadSignerFromFile, type KeyPairSigner } from "@voltr/scripts-core";
 import { CliError } from "./errors.js";
 
@@ -21,6 +22,20 @@ export function roleEnvVar(role: Role): string {
 /** The flag a command exposes for a role's keypair path. */
 export function roleFlag(role: Role): string {
   return `--${role}-keypair`;
+}
+
+/**
+ * Declare the `--<role>-keypair` option on a command with one canonical wording
+ * shared by every command, so the flag name, value placeholder, and help text
+ * (including the env-var fallback) never drift between integrations. It is a
+ * plain `option` — presence is enforced later by {@link loadRoleSigner}, which
+ * also honours the `<ROLE>_KEYPAIR` env var.
+ */
+export function addRoleKeypairOption(command: Command, role: Role): Command {
+  return command.option(
+    `${roleFlag(role)} <path>`,
+    `${role} keypair JSON path (or ${ROLE_ENV_VAR[role]} env)`
+  );
 }
 
 /**

@@ -6,7 +6,7 @@ export * from "./pda.js";
 export * from "./jupiter.js";
 
 // Operation builders, one module per strategy domain.
-export * from "./operations/spot.js";
+export * from "./operations/swap.js";
 export * from "./operations/earn.js";
 
 // Read-only queries.

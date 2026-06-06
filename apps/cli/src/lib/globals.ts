@@ -1,6 +1,5 @@
 import { Command, Option } from "commander";
 import {
-  address,
   createScriptContext,
   loadProfile,
   type Address,
@@ -11,6 +10,7 @@ import {
   type TxMode,
 } from "@voltr/scripts-core";
 import { CliError } from "./errors.js";
+import { parseAddress } from "./parse.js";
 
 export const TX_MODES = ["print", "execute", "simulate", "multisig"] as const;
 export const PRIORITY_FEE_KINDS = ["helius", "rpc", "fixed", "none"] as const;
@@ -81,14 +81,7 @@ export async function loadCommandContext(
 }
 
 function parseMultisigAddress(value: string | undefined): Address | undefined {
-  if (!value) return undefined;
-  try {
-    return address(value);
-  } catch {
-    throw new CliError(
-      `--multisig-address must be a valid base58 Solana address: ${value}`
-    );
-  }
+  return value ? parseAddress(value, "--multisig-address") : undefined;
 }
 
 /**

@@ -21,7 +21,7 @@ import { SPOT_ADAPTOR_PROGRAM_ID, SPOT_DISCRIMINATOR } from "../constants.js";
 import { findSpotOracleInitReceiptPda } from "../pda.js";
 import { setupJupiterSwap } from "../jupiter.js";
 
-export interface SpotSpotInitArgs {
+export interface SpotSwapInitArgs {
   /** Manager keypair; also funds the new strategy accounts (payer). */
   manager: KeyPairSigner;
   vault: Address;
@@ -34,7 +34,7 @@ export interface SpotSpotInitArgs {
   lookupTableAddresses?: Address[];
 }
 
-export interface SpotSpotSwapArgs {
+export interface SpotSwapArgs {
   manager: KeyPairSigner;
   vault: Address;
   assetMint: Address;
@@ -59,15 +59,15 @@ export interface SpotSpotSwapArgs {
 }
 
 /**
- * `spot:spot:init` — initialize a Spot strategy whose `strategy` address is the
+ * `spot:swap:init` — initialize a Spot strategy whose `strategy` address is the
  * foreign mint. Creates the strategy auth's asset and foreign token accounts and
  * registers both Pyth oracle init receipts.
  *
  * Migrated from `manager-initialize-spot.ts`.
  */
-export async function buildSpotSpotInitOperation(
+export async function buildSpotSwapInitOperation(
   ctx: ScriptContext,
-  args: SpotSpotInitArgs
+  args: SpotSwapInitArgs
 ): Promise<BuiltOperation> {
   const instructions: Instruction[] = [];
 
@@ -129,7 +129,7 @@ export async function buildSpotSpotInitOperation(
   );
 
   return {
-    label: "spot:spot:init",
+    label: "spot:swap:init",
     instructions,
     lookupTableAddresses: args.lookupTableAddresses,
   };
@@ -137,9 +137,9 @@ export async function buildSpotSpotInitOperation(
 
 type SpotSwapDirection = "buy" | "sell";
 
-async function buildSpotSwapOperation(
+async function buildSpotSwapDirectionOperation(
   ctx: ScriptContext,
-  args: SpotSpotSwapArgs,
+  args: SpotSwapArgs,
   direction: SpotSwapDirection
 ): Promise<BuiltOperation> {
   const instructions: Instruction[] = [];
@@ -227,7 +227,7 @@ async function buildSpotSwapOperation(
   instructions.push(withRemainingAccounts(strategyIx, remainingAccounts));
 
   return {
-    label: direction === "buy" ? "spot:spot:buy" : "spot:spot:sell",
+    label: direction === "buy" ? "spot:swap:buy" : "spot:swap:sell",
     instructions,
     lookupTableAddresses: [
       ...(args.lookupTableAddresses ?? []),
@@ -237,20 +237,20 @@ async function buildSpotSwapOperation(
 }
 
 /**
- * `spot:spot:buy` — deposit `amount` of the vault asset into the Spot strategy,
+ * `spot:swap:buy` — deposit `amount` of the vault asset into the Spot strategy,
  * swapping it to the foreign asset through Jupiter.
  *
  * Migrated from `manager-buy-spot.ts`.
  */
-export function buildSpotSpotBuyOperation(
+export function buildSpotSwapBuyOperation(
   ctx: ScriptContext,
-  args: SpotSpotSwapArgs
+  args: SpotSwapArgs
 ): Promise<BuiltOperation> {
-  return buildSpotSwapOperation(ctx, args, "buy");
+  return buildSpotSwapDirectionOperation(ctx, args, "buy");
 }
 
 /**
- * `spot:spot:sell` — withdraw `amount` of the foreign asset from the Spot
+ * `spot:swap:sell` — withdraw `amount` of the foreign asset from the Spot
  * strategy, swapping it back to the vault asset through Jupiter.
  *
  * Migrated from `manager-sell-spot.ts`. NOTE: the legacy script passed `amountIn
@@ -259,9 +259,9 @@ export function buildSpotSpotBuyOperation(
  * foreign→asset swap of `amount` — so that sell is symmetric with buy and
  * produces working swap data.
  */
-export function buildSpotSpotSellOperation(
+export function buildSpotSwapSellOperation(
   ctx: ScriptContext,
-  args: SpotSpotSwapArgs
+  args: SpotSwapArgs
 ): Promise<BuiltOperation> {
-  return buildSpotSwapOperation(ctx, args, "sell");
+  return buildSpotSwapDirectionOperation(ctx, args, "sell");
 }

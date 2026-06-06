@@ -87,9 +87,9 @@ map, shared-module layout, and deferral reasons. CLI wiring is still pending.
 - `manager-deposit-kvault.ts` → `kamino:kvault:deposit` — done
 - `manager-withdraw-kvault.ts` → `kamino:kvault:withdraw` — done
 - `manager-claim-market-reward[-with-index].ts` → `kamino:market:claim-reward` — done (index optional)
-- `manager-claim-kvault-rewards[-with-index].ts` → `kamino:kvault:claim-rewards` — done (index optional)
-- `user-direct-withdraw-strategy.ts` → `kamino:user:direct-withdraw` — done
-- `user-request-and-direct-withdraw-strategy.ts` → `kamino:user:request-and-direct-withdraw` — done
+- `manager-claim-kvault-rewards[-with-index].ts` → `kamino:kvault:claim-reward` — done (index optional)
+- `user-direct-withdraw-strategy.ts` → `kamino:kvault:direct-withdraw` — done
+- `user-request-and-direct-withdraw-strategy.ts` → `kamino:kvault:request-and-direct-withdraw` — done
 - `admin-add-adaptor.ts` → `vault:add-adaptor` (generic core builder) — done (VOL-224); see [adaptor-admin.md](./adaptor-admin.md)
 - `admin-init-direct-withdraw.ts` → `vault:init-direct-withdraw` (generic core builder, strategy = kvault) — done (VOL-224)
 - `query-strategy-positions.ts` → `kamino:query:strategy-positions` (query) — not in VOL-225 scope
@@ -108,9 +108,9 @@ a REST API, not a web3.js SDK), so no web3.js types are pulled in.
 
 | Legacy script | New command | Builder / query |
 | --- | --- | --- |
-| `manager-initialize-spot.ts` | `spot:spot:init` | `buildSpotSpotInitOperation` (`operations/spot.ts`) |
-| `manager-buy-spot.ts` | `spot:spot:buy` | `buildSpotSpotBuyOperation` (`operations/spot.ts`) |
-| `manager-sell-spot.ts` | `spot:spot:sell` | `buildSpotSpotSellOperation` (`operations/spot.ts`) |
+| `manager-initialize-spot.ts` | `spot:swap:init` | `buildSpotSwapInitOperation` (`operations/swap.ts`) |
+| `manager-buy-spot.ts` | `spot:swap:buy` | `buildSpotSwapBuyOperation` (`operations/swap.ts`) |
+| `manager-sell-spot.ts` | `spot:swap:sell` | `buildSpotSwapSellOperation` (`operations/swap.ts`) |
 | `manager-initialize-earn.ts` (tx 1) | `spot:earn:init` | `buildSpotEarnInitOperation` (`operations/earn.ts`) |
 | `manager-initialize-earn.ts` (tx 2, optional LUT) | `spot:earn:extend-lut` | `buildSpotEarnExtendLutOperation` (`operations/earn.ts`) |
 | `manager-deposit-earn.ts` | `spot:earn:deposit` | `buildSpotEarnDepositOperation` (`operations/earn.ts`) |
@@ -124,9 +124,9 @@ Notes:
 - `manager-initialize-earn.ts` was a two-transaction flow (init strategy, then
   extend the lookup table). Per the "one builder, one operation" rule it splits
   into `spot:earn:init` and `spot:earn:extend-lut`.
-- **`spot:spot:sell` corrects a latent bug.** The legacy `manager-sell-spot.ts`
+- **`spot:swap:sell` corrects a latent bug.** The legacy `manager-sell-spot.ts`
   passed `amountIn = 0` (and the asset→foreign direction) to its Jupiter helper,
-  so it never actually built a swap. `buildSpotSpotSellOperation` implements the
+  so it never actually built a swap. `buildSpotSwapSellOperation` implements the
   intended behavior — a foreign→asset swap of `amount`, symmetric with buy.
 - Jupiter swap setup is encapsulated in `packages/spot/src/jupiter.ts`
   (`setupJupiterSwap`) and unit-tested in `jupiter.test.ts` independently of the

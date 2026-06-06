@@ -1,6 +1,5 @@
 import type { Command } from "commander";
 import {
-  parseBigintAmount,
   processOperation,
   requireAssetMint,
   requireAssetTokenProgram,
@@ -18,21 +17,21 @@ import {
   buildSpotEarnInitDirectWithdrawOperation,
   buildSpotEarnInitOperation,
   buildSpotEarnWithdrawOperation,
-  buildSpotSpotBuyOperation,
-  buildSpotSpotInitOperation,
-  buildSpotSpotSellOperation,
+  buildSpotSwapBuyOperation,
+  buildSpotSwapInitOperation,
+  buildSpotSwapSellOperation,
   querySpotStrategyPositions,
   type SpotEarnDepositArgs,
-  type SpotSpotSwapArgs,
+  type SpotSwapArgs,
 } from "@voltr/scripts-spot";
-import { CliError } from "../lib/errors.js";
 import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
 import { printJson } from "../lib/output.js";
-import { loadRoleSigner } from "../lib/signers.js";
+import { parseAmount, parseBps, parseCount } from "../lib/parse.js";
+import { addRoleKeypairOption, loadRoleSigner } from "../lib/signers.js";
 
-type SpotBuilder = (
+type SpotSwapBuilder = (
   ctx: ScriptContext,
-  args: SpotSpotSwapArgs
+  args: SpotSwapArgs
 ) => Promise<BuiltOperation>;
 
 type EarnAmountBuilder = (
@@ -40,47 +39,28 @@ type EarnAmountBuilder = (
   args: SpotEarnDepositArgs
 ) => Promise<BuiltOperation>;
 
-function parseSlippageBps(value: string): number {
-  const bps = Number(value);
-  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
-    throw new CliError(
-      `--slippage-bps must be an integer between 0 and 10000: ${value}`
-    );
-  }
-  return bps;
-}
-
-function parseJupiterMaxAccounts(value: string): number {
-  const maxAccounts = Number(value);
-  if (!Number.isInteger(maxAccounts) || maxAccounts <= 0) {
-    throw new CliError(
-      `--jupiter-max-accounts must be a positive integer: ${value}`
-    );
-  }
-  return maxAccounts;
-}
+// --- spot swap strategy commands (`spot:swap:*`) ---
 
 /**
- * Register a spot swap command (`spot:spot:buy` / `spot:spot:sell`). Both sides
+ * Register a spot swap command (`spot:swap:buy` / `spot:swap:sell`). Both sides
  * share the same flags and profile fields, so they differ only by command name
- * and builder.
+ * and builder. The manager signs.
  */
-function registerSpotSwap(
+function registerSpotSwapCommand(
   program: Command,
-  command: "spot:spot:buy" | "spot:spot:sell",
-  builder: SpotBuilder
+  command: "spot:swap:buy" | "spot:swap:sell",
+  builder: SpotSwapBuilder
 ): void {
-  const side = command.endsWith("buy") ? "Buy" : "Sell";
-  program
-    .command(command)
-    .summary(`${side.toLowerCase()} the foreign asset via spot swap`)
-    .description(
-      `${side} the configured foreign asset against the vault asset via a spot swap.`
-    )
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
+  const side = command.endsWith("buy") ? "buy" : "sell";
+  addRoleKeypairOption(
+    program
+      .command(command)
+      .summary(`${side} the foreign asset via spot swap`)
+      .description(
+        `${side === "buy" ? "Buy" : "Sell"} the configured foreign asset against the vault asset via a Jupiter spot swap. --amount is the raw input amount in smallest units (vault asset for buy, foreign asset for sell). Signs as the vault manager.`
+      ),
+    "manager"
+  )
     .requiredOption("--amount <raw>", "raw asset amount in smallest units")
     .requiredOption("--slippage-bps <bps>", "max slippage in basis points")
     .option(
@@ -104,22 +84,22 @@ function registerSpotSwap(
         const vault = requireVaultAddress(profile, { command });
         const assetMint = requireAssetMint(profile);
         const assetTokenProgram = requireAssetTokenProgram(profile);
-        const {
-          foreignMint,
-          foreignTokenProgram,
-          assetOracle,
-          foreignOracle,
-        } = requireSpotIntegration(profile, { command });
+        const { foreignMint, foreignTokenProgram, assetOracle, foreignOracle } =
+          requireSpotIntegration(profile, { command });
         const lookupTableAddresses = resolveLookupTableAddresses(profile, {
           command,
         });
-        const amount = parseBigintAmount(options.amount);
-        const slippageBps = parseSlippageBps(options.slippageBps);
-        const jupiterMaxAccounts = parseJupiterMaxAccounts(
-          options.jupiterMaxAccounts
+        const amount = parseAmount(options.amount, "--amount");
+        const slippageBps = parseBps(options.slippageBps, "--slippage-bps");
+        const jupiterMaxAccounts = parseCount(
+          options.jupiterMaxAccounts,
+          "--jupiter-max-accounts"
         );
         const minimumThresholdAmountOut = options.minimumThresholdAmountOut
-          ? parseBigintAmount(options.minimumThresholdAmountOut)
+          ? parseAmount(
+              options.minimumThresholdAmountOut,
+              "--minimum-threshold-amount-out"
+            )
           : undefined;
         const processorOptions = resolveProcessorOptions(globals);
         const manager = await loadRoleSigner("manager", options.managerKeypair);
@@ -151,57 +131,56 @@ function registerSpotSwap(
     );
 }
 
-/** Spot swap strategy commands (`spot:spot:*`): init + buy/sell. */
+/** Spot swap strategy commands (`spot:swap:*`): init + buy/sell. */
 function registerSpotSwapCommands(program: Command): void {
-  program
-    .command("spot:spot:init")
-    .summary("initialize a Spot swap strategy")
-    .description(
-      "Initialize a Spot strategy (its strategy id is the foreign mint): creates the strategy auth's asset and foreign token accounts and registers both Pyth oracle init receipts."
-    )
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
-    .action(async (options: { managerKeypair?: string }) => {
-      const command = "spot:spot:init";
+  const command = "spot:swap:init";
+  addRoleKeypairOption(
+    program
+      .command(command)
+      .summary("initialize a Spot swap strategy")
+      .description(
+        "Initialize a Spot swap strategy (its strategy id is the foreign mint): creates the strategy auth's asset and foreign token accounts and registers both Pyth oracle init receipts. Signs as the vault manager."
+      ),
+    "manager"
+  ).action(async (options: { managerKeypair?: string }) => {
+    const { globals, profile, ctx } = await loadCommandContext(program);
+    const vault = requireVaultAddress(profile, { command });
+    const assetMint = requireAssetMint(profile);
+    const assetTokenProgram = requireAssetTokenProgram(profile);
+    const { foreignMint, foreignTokenProgram, assetOracle, foreignOracle } =
+      requireSpotIntegration(profile, { command });
+    const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+      command,
+    });
+    const processorOptions = resolveProcessorOptions(globals);
+    const manager = await loadRoleSigner("manager", options.managerKeypair);
 
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const vault = requireVaultAddress(profile, { command });
-      const assetMint = requireAssetMint(profile);
-      const assetTokenProgram = requireAssetTokenProgram(profile);
-      const { foreignMint, foreignTokenProgram, assetOracle, foreignOracle } =
-        requireSpotIntegration(profile, { command });
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
-      const processorOptions = resolveProcessorOptions(globals);
-      const manager = await loadRoleSigner("manager", options.managerKeypair);
-
-      const operation = await buildSpotSpotInitOperation(ctx, {
-        manager,
-        vault,
-        assetMint,
-        assetTokenProgram,
-        foreignMint,
-        foreignTokenProgram,
-        assetOracle,
-        foreignOracle,
-        lookupTableAddresses,
-      });
-
-      await processOperation({
-        ctx,
-        payer: manager,
-        operation,
-        mode: globals.mode,
-        options: processorOptions,
-      });
+    const operation = await buildSpotSwapInitOperation(ctx, {
+      manager,
+      vault,
+      assetMint,
+      assetTokenProgram,
+      foreignMint,
+      foreignTokenProgram,
+      assetOracle,
+      foreignOracle,
+      lookupTableAddresses,
     });
 
-  registerSpotSwap(program, "spot:spot:buy", buildSpotSpotBuyOperation);
-  registerSpotSwap(program, "spot:spot:sell", buildSpotSpotSellOperation);
+    await processOperation({
+      ctx,
+      payer: manager,
+      operation,
+      mode: globals.mode,
+      options: processorOptions,
+    });
+  });
+
+  registerSpotSwapCommand(program, "spot:swap:buy", buildSpotSwapBuyOperation);
+  registerSpotSwapCommand(program, "spot:swap:sell", buildSpotSwapSellOperation);
 }
+
+// --- Jupiter Earn strategy commands (`spot:earn:*`) ---
 
 /**
  * Register a Jupiter Earn amount command (`spot:earn:deposit` /
@@ -216,16 +195,15 @@ function registerEarnAmountCommand(
   const isDeposit = command.endsWith("deposit");
   const verb = isDeposit ? "Deposit" : "Withdraw";
   const direction = isDeposit ? "into" : "from";
-  program
-    .command(command)
-    .summary(`${verb.toLowerCase()} the vault asset ${direction} Jupiter Earn`)
-    .description(
-      `${verb} the configured vault asset ${direction} the Jupiter Earn (lending) strategy.`
-    )
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
+  addRoleKeypairOption(
+    program
+      .command(command)
+      .summary(`${verb.toLowerCase()} the vault asset ${direction} Jupiter Earn`)
+      .description(
+        `${verb} the configured vault asset ${direction} the Jupiter Earn (lending) strategy. --amount is the raw asset amount in smallest units. Signs as the vault manager.`
+      ),
+    "manager"
+  )
     .requiredOption("--amount <raw>", "raw asset amount in smallest units")
     .action(async (options: { managerKeypair?: string; amount: string }) => {
       const { globals, profile, ctx } = await loadCommandContext(program);
@@ -235,7 +213,7 @@ function registerEarnAmountCommand(
       const lookupTableAddresses = resolveLookupTableAddresses(profile, {
         command,
       });
-      const amount = parseBigintAmount(options.amount);
+      const amount = parseAmount(options.amount, "--amount");
       const processorOptions = resolveProcessorOptions(globals);
       const manager = await loadRoleSigner("manager", options.managerKeypair);
 
@@ -260,45 +238,42 @@ function registerEarnAmountCommand(
 
 /** Jupiter Earn strategy commands (`spot:earn:*`). */
 function registerSpotEarnCommands(program: Command): void {
-  program
-    .command("spot:earn:init")
-    .summary("initialize the Jupiter Earn strategy")
-    .description(
-      "Initialize the Jupiter Earn (lending) strategy for the vault asset: creates the strategy auth's asset and fToken token accounts. Run spot:earn:extend-lut afterwards if you use a lookup table."
-    )
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
-    .action(async (options: { managerKeypair?: string }) => {
-      const command = "spot:earn:init";
-
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const vault = requireVaultAddress(profile, { command });
-      const assetMint = requireAssetMint(profile);
-      const assetTokenProgram = requireAssetTokenProgram(profile);
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
-      const processorOptions = resolveProcessorOptions(globals);
-      const manager = await loadRoleSigner("manager", options.managerKeypair);
-
-      const operation = await buildSpotEarnInitOperation(ctx, {
-        manager,
-        vault,
-        assetMint,
-        assetTokenProgram,
-        lookupTableAddresses,
-      });
-
-      await processOperation({
-        ctx,
-        payer: manager,
-        operation,
-        mode: globals.mode,
-        options: processorOptions,
-      });
+  const initCommand = "spot:earn:init";
+  addRoleKeypairOption(
+    program
+      .command(initCommand)
+      .summary("initialize the Jupiter Earn strategy")
+      .description(
+        "Initialize the Jupiter Earn (lending) strategy for the vault asset: creates the strategy auth's asset and fToken token accounts. Run spot:earn:extend-lut afterwards if you use a lookup table. Signs as the vault manager."
+      ),
+    "manager"
+  ).action(async (options: { managerKeypair?: string }) => {
+    const { globals, profile, ctx } = await loadCommandContext(program);
+    const vault = requireVaultAddress(profile, { command: initCommand });
+    const assetMint = requireAssetMint(profile);
+    const assetTokenProgram = requireAssetTokenProgram(profile);
+    const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+      command: initCommand,
     });
+    const processorOptions = resolveProcessorOptions(globals);
+    const manager = await loadRoleSigner("manager", options.managerKeypair);
+
+    const operation = await buildSpotEarnInitOperation(ctx, {
+      manager,
+      vault,
+      assetMint,
+      assetTokenProgram,
+      lookupTableAddresses,
+    });
+
+    await processOperation({
+      ctx,
+      payer: manager,
+      operation,
+      mode: globals.mode,
+      options: processorOptions,
+    });
+  });
 
   registerEarnAmountCommand(
     program,
@@ -311,102 +286,101 @@ function registerSpotEarnCommands(program: Command): void {
     buildSpotEarnWithdrawOperation
   );
 
-  program
-    .command("spot:earn:extend-lut")
-    .summary("extend the lookup table with the Jupiter Earn strategy accounts")
-    .description(
-      "Extend the profile's lookup table (vault.lookupTableAddress) with every account the Jupiter Earn init/deposit/withdraw transactions touch, so they fit within transaction size limits. Already-present addresses are skipped. Ports the optional second transaction of the legacy earn-init flow; the manager is the lookup table authority and payer."
-    )
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
-    .action(async (options: { managerKeypair?: string }) => {
-      const command = "spot:earn:extend-lut";
+  const extendLutCommand = "spot:earn:extend-lut";
+  addRoleKeypairOption(
+    program
+      .command(extendLutCommand)
+      .summary("extend the lookup table with the Jupiter Earn strategy accounts")
+      .description(
+        "Extend the profile's lookup table (vault.lookupTableAddress) with every account the Jupiter Earn init/deposit/withdraw transactions touch, so they fit within transaction size limits. Already-present addresses are skipped. The manager is the lookup table authority and payer."
+      ),
+    "manager"
+  ).action(async (options: { managerKeypair?: string }) => {
+    const { globals, profile, ctx } = await loadCommandContext(program);
+    const vault = requireVaultAddress(profile, { command: extendLutCommand });
+    const assetMint = requireAssetMint(profile);
+    const assetTokenProgram = requireAssetTokenProgram(profile);
+    const lookupTable = requireLookupTableAddress(profile, {
+      command: extendLutCommand,
+    });
+    const processorOptions = resolveProcessorOptions(globals);
+    const manager = await loadRoleSigner("manager", options.managerKeypair);
 
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const vault = requireVaultAddress(profile, { command });
-      const assetMint = requireAssetMint(profile);
-      const assetTokenProgram = requireAssetTokenProgram(profile);
-      const lookupTable = requireLookupTableAddress(profile, { command });
-      const processorOptions = resolveProcessorOptions(globals);
-      const manager = await loadRoleSigner("manager", options.managerKeypair);
-
-      const operation = await buildSpotEarnExtendLutOperation(ctx, {
-        manager,
-        vault,
-        assetMint,
-        assetTokenProgram,
-        lookupTable,
-      });
-
-      await processOperation({
-        ctx,
-        payer: manager,
-        operation,
-        mode: globals.mode,
-        options: processorOptions,
-      });
+    const operation = await buildSpotEarnExtendLutOperation(ctx, {
+      manager,
+      vault,
+      assetMint,
+      assetTokenProgram,
+      lookupTable,
     });
 
-  program
-    .command("spot:earn:init-direct-withdraw")
-    .summary("register Jupiter Earn as a vault direct-withdraw strategy")
-    .description(
-      "Register the Jupiter Earn (lending) strategy as a direct-withdraw strategy on the vault. The strategy (the Jupiter lending PDA) and the Spot adaptor program are derived automatically; the 8-byte instruction discriminator comes from the profile field integrations.spot.directWithdrawDiscriminator. Signs as the vault admin."
-    )
-    .option(
-      "--admin-keypair <path>",
-      "admin keypair JSON path (or ADMIN_KEYPAIR env)"
-    )
-    .action(async (options: { adminKeypair?: string }) => {
-      const command = "spot:earn:init-direct-withdraw";
-
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const vault = requireVaultAddress(profile, { command });
-      const assetMint = requireAssetMint(profile);
-      const instructionDiscriminator = requireSpotDirectWithdrawDiscriminator(
-        profile,
-        { command }
-      );
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
-      const processorOptions = resolveProcessorOptions(globals);
-      const admin = await loadRoleSigner("admin", options.adminKeypair);
-
-      const operation = await buildSpotEarnInitDirectWithdrawOperation(ctx, {
-        admin,
-        vault,
-        assetMint,
-        instructionDiscriminator,
-        lookupTableAddresses,
-      });
-
-      await processOperation({
-        ctx,
-        payer: admin,
-        operation,
-        mode: globals.mode,
-        options: processorOptions,
-      });
+    await processOperation({
+      ctx,
+      payer: manager,
+      operation,
+      mode: globals.mode,
+      options: processorOptions,
     });
+  });
+
+  const initDirectWithdrawCommand = "spot:earn:init-direct-withdraw";
+  addRoleKeypairOption(
+    program
+      .command(initDirectWithdrawCommand)
+      .summary("register Jupiter Earn as a vault direct-withdraw strategy")
+      .description(
+        "Register the Jupiter Earn (lending) strategy as a direct-withdraw strategy on the vault. The strategy (the Jupiter lending PDA) and the Spot adaptor program are derived automatically; the 8-byte instruction discriminator comes from the profile field integrations.spot.directWithdrawDiscriminator. Signs as the vault admin."
+      ),
+    "admin"
+  ).action(async (options: { adminKeypair?: string }) => {
+    const { globals, profile, ctx } = await loadCommandContext(program);
+    const vault = requireVaultAddress(profile, {
+      command: initDirectWithdrawCommand,
+    });
+    const assetMint = requireAssetMint(profile);
+    const instructionDiscriminator = requireSpotDirectWithdrawDiscriminator(
+      profile,
+      { command: initDirectWithdrawCommand }
+    );
+    const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+      command: initDirectWithdrawCommand,
+    });
+    const processorOptions = resolveProcessorOptions(globals);
+    const admin = await loadRoleSigner("admin", options.adminKeypair);
+
+    const operation = await buildSpotEarnInitDirectWithdrawOperation(ctx, {
+      admin,
+      vault,
+      assetMint,
+      instructionDiscriminator,
+      lookupTableAddresses,
+    });
+
+    await processOperation({
+      ctx,
+      payer: admin,
+      operation,
+      mode: globals.mode,
+      options: processorOptions,
+    });
+  });
 }
+
+// --- read-only Spot queries (`spot:query:*`) ---
 
 /**
  * Read-only Spot queries (`spot:query:*`). Like the vault queries these never
  * build a transaction, so they ignore `--mode` and need no signer keypair.
  */
 function registerSpotQueryCommands(program: Command): void {
+  const command = "spot:query:strategy-positions";
   program
-    .command("spot:query:strategy-positions")
+    .command(command)
     .summary("print the vault's Spot/Earn strategy positions as JSON")
     .description(
       "Read the vault's total value and per-strategy position values, augmenting each with the strategy's current raw foreign-token balance where the strategy is backed by a token mint (e.g. a Spot foreign asset; null for a Jupiter Earn lending position). Read-only: ignores --mode and needs no keypair."
     )
     .action(async () => {
-      const command = "spot:query:strategy-positions";
-
       const { profile, ctx } = await loadCommandContext(program);
       const vault = requireVaultAddress(profile, { command });
 

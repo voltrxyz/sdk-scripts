@@ -1,7 +1,5 @@
 import type { Command } from "commander";
 import {
-  asAddress,
-  parseBigintAmount,
   processOperation,
   requireAssetMint,
   requireAssetTokenProgram,
@@ -22,9 +20,9 @@ import {
   type TrustfulCurveBorrowArgs,
   type TrustfulCurveRepayArgs,
 } from "@voltr/scripts-trustful";
-import { CliError } from "../lib/errors.js";
 import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
-import { loadRoleSigner } from "../lib/signers.js";
+import { parseAddress, parseAmount, parseBps } from "../lib/parse.js";
+import { addRoleKeypairOption, loadRoleSigner } from "../lib/signers.js";
 
 type TrustfulCurveCommandArgs = TrustfulCurveBorrowArgs & TrustfulCurveRepayArgs;
 
@@ -33,17 +31,7 @@ type CurveBuilder = (
   args: TrustfulCurveCommandArgs
 ) => Promise<BuiltOperation>;
 
-function parseBorrowRateBps(value: string): number {
-  const bps = Number(value);
-  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
-    throw new CliError(
-      `--borrow-rate-bps must be an integer between 0 and 10000: ${value}`
-    );
-  }
-  return bps;
-}
-
-// --- arbitrary strategy commands ---
+// --- arbitrary strategy commands (`trustful:arbitrary:*`) ---
 //
 // All three arbitrary commands target an operator-named strategy, so they read
 // `integrations.trustful.strategySeedString` from the profile (the curve
@@ -52,60 +40,57 @@ function parseBorrowRateBps(value: string): number {
 
 /** Trustful arbitrary strategy commands (`trustful:arbitrary:*`). */
 function registerArbitraryCommands(program: Command): void {
-  program
-    .command("trustful:arbitrary:init")
-    .summary("initialize a Trustful arbitrary strategy")
-    .description(
-      "Initialize a Trustful arbitrary strategy: create the vault-strategy asset account (if missing), then initialize the strategy named by integrations.trustful.strategySeedString."
-    )
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
-    .action(async (options: { managerKeypair?: string }) => {
-      const command = "trustful:arbitrary:init";
+  const initCommand = "trustful:arbitrary:init";
+  addRoleKeypairOption(
+    program
+      .command(initCommand)
+      .summary("initialize a Trustful arbitrary strategy")
+      .description(
+        "Initialize a Trustful arbitrary strategy: create the vault-strategy asset account (if missing), then initialize the strategy named by integrations.trustful.strategySeedString. Signs as the vault manager."
+      ),
+    "manager"
+  ).action(async (options: { managerKeypair?: string }) => {
+    const { globals, profile, ctx } = await loadCommandContext(program);
+    const vault = requireVaultAddress(profile, { command: initCommand });
+    const assetMint = requireAssetMint(profile);
+    const assetTokenProgram = requireAssetTokenProgram(profile);
+    const { strategySeedString } = requireTrustfulIntegration(profile, {
+      command: initCommand,
+    });
+    const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+      command: initCommand,
+    });
+    const processorOptions = resolveProcessorOptions(globals);
+    const manager = await loadRoleSigner("manager", options.managerKeypair);
 
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const vault = requireVaultAddress(profile, { command });
-      const assetMint = requireAssetMint(profile);
-      const assetTokenProgram = requireAssetTokenProgram(profile);
-      const { strategySeedString } = requireTrustfulIntegration(profile, {
-        command,
-      });
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
-      const processorOptions = resolveProcessorOptions(globals);
-      const manager = await loadRoleSigner("manager", options.managerKeypair);
-
-      const operation = await buildTrustfulArbitraryInitOperation(ctx, {
-        manager,
-        vault,
-        assetMint,
-        assetTokenProgram,
-        strategySeedString,
-        lookupTableAddresses,
-      });
-
-      await processOperation({
-        ctx,
-        payer: manager,
-        operation,
-        mode: globals.mode,
-        options: processorOptions,
-      });
+    const operation = await buildTrustfulArbitraryInitOperation(ctx, {
+      manager,
+      vault,
+      assetMint,
+      assetTokenProgram,
+      strategySeedString,
+      lookupTableAddresses,
     });
 
-  program
-    .command("trustful:arbitrary:deposit")
-    .summary("deposit into a Trustful arbitrary strategy")
-    .description(
-      "Deposit vault assets into a Trustful arbitrary strategy. Prints the withdrawal-holding account to return strategy assets to before withdrawing."
-    )
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
+    await processOperation({
+      ctx,
+      payer: manager,
+      operation,
+      mode: globals.mode,
+      options: processorOptions,
+    });
+  });
+
+  const depositCommand = "trustful:arbitrary:deposit";
+  addRoleKeypairOption(
+    program
+      .command(depositCommand)
+      .summary("deposit into a Trustful arbitrary strategy")
+      .description(
+        "Deposit vault assets into a Trustful arbitrary strategy. --amount is the raw asset amount in smallest units. Prints the withdrawal-holding account to return strategy assets to before withdrawing. Signs as the vault manager."
+      ),
+    "manager"
+  )
     .requiredOption("--amount <raw>", "raw asset amount in smallest units")
     .requiredOption(
       "--destination <address>",
@@ -122,25 +107,24 @@ function registerArbitraryCommands(program: Command): void {
         destination: string;
         positionValueAfter: string;
       }) => {
-        const command = "trustful:arbitrary:deposit";
-
         const { globals, profile, ctx } = await loadCommandContext(program);
-        const vault = requireVaultAddress(profile, { command });
+        const vault = requireVaultAddress(profile, { command: depositCommand });
         const assetMint = requireAssetMint(profile);
         const assetTokenProgram = requireAssetTokenProgram(profile);
         const { strategySeedString } = requireTrustfulIntegration(profile, {
-          command,
+          command: depositCommand,
         });
         const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-          command,
+          command: depositCommand,
         });
-        const amount = parseBigintAmount(options.amount);
-        const destinationAssetTokenAccount = asAddress(
+        const amount = parseAmount(options.amount, "--amount");
+        const destinationAssetTokenAccount = parseAddress(
           options.destination,
           "--destination"
         );
-        const positionValueAfterDeposit = parseBigintAmount(
-          options.positionValueAfter
+        const positionValueAfterDeposit = parseAmount(
+          options.positionValueAfter,
+          "--position-value-after"
         );
         const processorOptions = resolveProcessorOptions(globals);
         const manager = await loadRoleSigner("manager", options.managerKeypair);
@@ -167,16 +151,16 @@ function registerArbitraryCommands(program: Command): void {
       }
     );
 
-  program
-    .command("trustful:arbitrary:withdraw")
-    .summary("withdraw from a Trustful arbitrary strategy")
-    .description(
-      "Withdraw assets from a Trustful arbitrary strategy back into the vault. Return strategy assets to the withdrawal-holding account (printed by trustful:arbitrary:deposit) before running this."
-    )
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
+  const withdrawCommand = "trustful:arbitrary:withdraw";
+  addRoleKeypairOption(
+    program
+      .command(withdrawCommand)
+      .summary("withdraw from a Trustful arbitrary strategy")
+      .description(
+        "Withdraw assets from a Trustful arbitrary strategy back into the vault. --amount is the raw asset amount in smallest units. Return strategy assets to the withdrawal-holding account (printed by trustful:arbitrary:deposit) before running this. Signs as the vault manager."
+      ),
+    "manager"
+  )
     .requiredOption("--amount <raw>", "raw asset amount in smallest units")
     .requiredOption(
       "--position-value-after <raw>",
@@ -188,21 +172,20 @@ function registerArbitraryCommands(program: Command): void {
         amount: string;
         positionValueAfter: string;
       }) => {
-        const command = "trustful:arbitrary:withdraw";
-
         const { globals, profile, ctx } = await loadCommandContext(program);
-        const vault = requireVaultAddress(profile, { command });
+        const vault = requireVaultAddress(profile, { command: withdrawCommand });
         const assetMint = requireAssetMint(profile);
         const assetTokenProgram = requireAssetTokenProgram(profile);
         const { strategySeedString } = requireTrustfulIntegration(profile, {
-          command,
+          command: withdrawCommand,
         });
         const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-          command,
+          command: withdrawCommand,
         });
-        const amount = parseBigintAmount(options.amount);
-        const positionValueAfterWithdraw = parseBigintAmount(
-          options.positionValueAfter
+        const amount = parseAmount(options.amount, "--amount");
+        const positionValueAfterWithdraw = parseAmount(
+          options.positionValueAfter,
+          "--position-value-after"
         );
         const processorOptions = resolveProcessorOptions(globals);
         const manager = await loadRoleSigner("manager", options.managerKeypair);
@@ -229,7 +212,7 @@ function registerArbitraryCommands(program: Command): void {
     );
 }
 
-// --- curve strategy commands ---
+// --- curve strategy commands (`trustful:curve:*`) ---
 //
 // The curve strategy is a per-vault singleton seeded by the adaptor's fixed
 // "curve" constant, so none of these take a strategy seed flag. The manager
@@ -245,14 +228,15 @@ function registerCurveCommand(
   builder: CurveBuilder
 ): void {
   const verb = command.endsWith("borrow") ? "Borrow" : "Repay";
-  program
-    .command(command)
-    .summary(`${verb.toLowerCase()} against the Trustful curve strategy`)
-    .description(`${verb} against the Trustful curve strategy.`)
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
+  addRoleKeypairOption(
+    program
+      .command(command)
+      .summary(`${verb.toLowerCase()} against the Trustful curve strategy`)
+      .description(
+        `${verb} against the Trustful curve strategy. --amount is the raw asset amount in smallest units. Signs as the vault manager.`
+      ),
+    "manager"
+  )
     .requiredOption("--amount <raw>", "raw asset amount in smallest units")
     .requiredOption("--borrow-rate-bps <bps>", "borrow rate in basis points")
     .action(
@@ -268,8 +252,11 @@ function registerCurveCommand(
         const lookupTableAddresses = resolveLookupTableAddresses(profile, {
           command,
         });
-        const amount = parseBigintAmount(options.amount);
-        const borrowRateBps = parseBorrowRateBps(options.borrowRateBps);
+        const amount = parseAmount(options.amount, "--amount");
+        const borrowRateBps = parseBps(
+          options.borrowRateBps,
+          "--borrow-rate-bps"
+        );
         const processorOptions = resolveProcessorOptions(globals);
         const manager = await loadRoleSigner("manager", options.managerKeypair);
 
@@ -296,45 +283,42 @@ function registerCurveCommand(
 
 /** Trustful curve strategy commands (`trustful:curve:*`). */
 function registerCurveCommands(program: Command): void {
-  program
-    .command("trustful:curve:init")
-    .summary("initialize the Trustful curve strategy")
-    .description(
-      "Initialize the Trustful curve strategy: create the withdrawal-holding, vault-strategy, and manager asset accounts (if missing), then initialize the strategy."
-    )
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
-    .action(async (options: { managerKeypair?: string }) => {
-      const command = "trustful:curve:init";
-
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const vault = requireVaultAddress(profile, { command });
-      const assetMint = requireAssetMint(profile);
-      const assetTokenProgram = requireAssetTokenProgram(profile);
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
-      const processorOptions = resolveProcessorOptions(globals);
-      const manager = await loadRoleSigner("manager", options.managerKeypair);
-
-      const operation = await buildTrustfulCurveInitOperation(ctx, {
-        manager,
-        vault,
-        assetMint,
-        assetTokenProgram,
-        lookupTableAddresses,
-      });
-
-      await processOperation({
-        ctx,
-        payer: manager,
-        operation,
-        mode: globals.mode,
-        options: processorOptions,
-      });
+  const initCommand = "trustful:curve:init";
+  addRoleKeypairOption(
+    program
+      .command(initCommand)
+      .summary("initialize the Trustful curve strategy")
+      .description(
+        "Initialize the Trustful curve strategy: create the withdrawal-holding, vault-strategy, and manager asset accounts (if missing), then initialize the strategy. Signs as the vault manager."
+      ),
+    "manager"
+  ).action(async (options: { managerKeypair?: string }) => {
+    const { globals, profile, ctx } = await loadCommandContext(program);
+    const vault = requireVaultAddress(profile, { command: initCommand });
+    const assetMint = requireAssetMint(profile);
+    const assetTokenProgram = requireAssetTokenProgram(profile);
+    const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+      command: initCommand,
     });
+    const processorOptions = resolveProcessorOptions(globals);
+    const manager = await loadRoleSigner("manager", options.managerKeypair);
+
+    const operation = await buildTrustfulCurveInitOperation(ctx, {
+      manager,
+      vault,
+      assetMint,
+      assetTokenProgram,
+      lookupTableAddresses,
+    });
+
+    await processOperation({
+      ctx,
+      payer: manager,
+      operation,
+      mode: globals.mode,
+      options: processorOptions,
+    });
+  });
 
   registerCurveCommand(
     program,
@@ -347,39 +331,38 @@ function registerCurveCommands(program: Command): void {
     buildTrustfulCurveRepayOperation
   );
 
-  program
-    .command("trustful:curve:remove")
-    .summary("close the Trustful curve strategy")
-    .description("Close the Trustful curve strategy via the vault SDK.")
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
-    .action(async (options: { managerKeypair?: string }) => {
-      const command = "trustful:curve:remove";
-
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const vault = requireVaultAddress(profile, { command });
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
-      const processorOptions = resolveProcessorOptions(globals);
-      const manager = await loadRoleSigner("manager", options.managerKeypair);
-
-      const operation = await buildTrustfulCurveRemoveOperation(ctx, {
-        manager,
-        vault,
-        lookupTableAddresses,
-      });
-
-      await processOperation({
-        ctx,
-        payer: manager,
-        operation,
-        mode: globals.mode,
-        options: processorOptions,
-      });
+  const removeCommand = "trustful:curve:remove";
+  addRoleKeypairOption(
+    program
+      .command(removeCommand)
+      .summary("close the Trustful curve strategy")
+      .description(
+        "Close the Trustful curve strategy via the vault SDK. Signs as the vault manager."
+      ),
+    "manager"
+  ).action(async (options: { managerKeypair?: string }) => {
+    const { globals, profile, ctx } = await loadCommandContext(program);
+    const vault = requireVaultAddress(profile, { command: removeCommand });
+    const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+      command: removeCommand,
     });
+    const processorOptions = resolveProcessorOptions(globals);
+    const manager = await loadRoleSigner("manager", options.managerKeypair);
+
+    const operation = await buildTrustfulCurveRemoveOperation(ctx, {
+      manager,
+      vault,
+      lookupTableAddresses,
+    });
+
+    await processOperation({
+      ctx,
+      payer: manager,
+      operation,
+      mode: globals.mode,
+      options: processorOptions,
+    });
+  });
 }
 
 /** Trustful arbitrary / curve strategies (`trustful:*`). */
