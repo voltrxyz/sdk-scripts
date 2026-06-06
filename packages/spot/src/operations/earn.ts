@@ -4,6 +4,7 @@ import {
   type Address,
   type Instruction,
   type KeyPairSigner,
+  type ReadonlyUint8Array,
 } from "@solana/kit";
 import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
@@ -14,6 +15,7 @@ import {
 } from "@voltr/vault-sdk";
 import {
   buildExtendLookupTableInstructions,
+  buildInitDirectWithdrawStrategyOperation,
   collectInstructionAddresses,
   setupTokenAccount,
   type BuiltOperation,
@@ -25,7 +27,7 @@ import {
   JUPITER_LEND_PROGRAM_ID,
   JUPITER_LIQUIDITY_PROGRAM_ID,
 } from "../constants.js";
-import { deriveJupiterEarnAccounts } from "../pda.js";
+import { deriveJupiterEarnAccounts, findJupiterLendingPda } from "../pda.js";
 import { appendRemainingAccounts } from "../util.js";
 
 export interface SpotEarnInitArgs {
@@ -279,4 +281,51 @@ export async function buildSpotEarnExtendLookupTableOperation(
     instructions,
     lookupTableAddresses: [],
   };
+}
+
+export interface SpotEarnInitDirectWithdrawArgs {
+  /** Vault admin; pays for the direct-withdraw init receipt and signs. */
+  admin: KeyPairSigner;
+  vault: Address;
+  assetMint: Address;
+  /**
+   * The adaptor instruction the direct-withdraw flow invokes, as an 8-byte
+   * discriminator. Per-deployment value (the legacy `directWithdrawDiscriminator`
+   * config); not one of the fixed Spot `DISCRIMINATOR` entries, so it is passed
+   * in rather than hardcoded.
+   */
+  instructionDiscriminator: ReadonlyUint8Array | readonly number[];
+  additionalArgs?: ReadonlyUint8Array | null;
+  allowUserArgs?: boolean;
+  lookupTableAddresses?: Address[];
+}
+
+/**
+ * `spot:earn:init-direct-withdraw` — register the Jupiter Earn strategy as a
+ * direct-withdraw strategy on the vault. Ports `admin-init-direct-withdraw.ts`
+ * (Spot).
+ *
+ * The only Spot-specific step is deriving the strategy — the Jupiter `lending`
+ * PDA for the vault asset. Everything else is generic, so this delegates to the
+ * core builder {@link buildInitDirectWithdrawStrategyOperation}, binds the Spot
+ * adaptor program, and re-labels the result for the Spot command.
+ */
+export async function buildSpotEarnInitDirectWithdrawOperation(
+  ctx: ScriptContext,
+  args: SpotEarnInitDirectWithdrawArgs
+): Promise<BuiltOperation> {
+  const strategy = await findJupiterLendingPda({ assetMint: args.assetMint });
+
+  const operation = await buildInitDirectWithdrawStrategyOperation(ctx, {
+    admin: args.admin,
+    vault: args.vault,
+    strategy,
+    adaptorProgram: ADAPTOR_PROGRAM_ID,
+    instructionDiscriminator: args.instructionDiscriminator,
+    additionalArgs: args.additionalArgs,
+    allowUserArgs: args.allowUserArgs,
+    lookupTableAddresses: args.lookupTableAddresses,
+  });
+
+  return { ...operation, label: "spot:earn:init-direct-withdraw" };
 }

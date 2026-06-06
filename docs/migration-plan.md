@@ -90,8 +90,8 @@ map, shared-module layout, and deferral reasons. CLI wiring is still pending.
 - `manager-claim-kvault-rewards[-with-index].ts` → `kamino:kvault:claim-rewards` — done (index optional)
 - `user-direct-withdraw-strategy.ts` → `kamino:user:direct-withdraw` — done
 - `user-request-and-direct-withdraw-strategy.ts` → `kamino:user:request-and-direct-withdraw` — done
-- `admin-add-adaptor.ts` → `kamino:admin:add-adaptor` — deferred to VOL-224
-- `admin-init-direct-withdraw.ts` → `kamino:admin:init-direct-withdraw` — deferred to VOL-224
+- `admin-add-adaptor.ts` → `vault:add-adaptor` (generic core builder) — done (VOL-224); see [adaptor-admin.md](./adaptor-admin.md)
+- `admin-init-direct-withdraw.ts` → `vault:init-direct-withdraw` (generic core builder, strategy = kvault) — done (VOL-224)
 - `query-strategy-positions.ts` → `kamino:query:strategy-positions` (query) — not in VOL-225 scope
 
 ### Spot (done — VOL-226)
@@ -116,8 +116,8 @@ a REST API, not a web3.js SDK), so no web3.js types are pulled in.
 | `manager-deposit-earn.ts` | `spot:earn:deposit` | `buildSpotEarnDepositOperation` (`operations/earn.ts`) |
 | `manager-withdraw-earn.ts` | `spot:earn:withdraw` | `buildSpotEarnWithdrawOperation` (`operations/earn.ts`) |
 | `query-strategy-positions.ts` | `spot:query:strategy-positions` | `querySpotStrategyPositions` (`queries/strategy-positions.ts`) |
-| `admin-add-adaptor.ts` | `spot:admin:add-adaptor` | Deferred to VOL-224 (generic adaptor admin helper). |
-| `admin-init-direct-withdraw.ts` | `spot:admin:init-direct-withdraw` | Deferred to VOL-224. |
+| `admin-add-adaptor.ts` | `vault:add-adaptor` | `buildAddAdaptorOperation` (generic core builder; VOL-224). |
+| `admin-init-direct-withdraw.ts` | `spot:earn:init-direct-withdraw` | `buildSpotEarnInitDirectWithdrawOperation` (derives the Jupiter `lending` strategy, delegates to core; VOL-224). |
 
 Notes:
 
@@ -146,8 +146,8 @@ Then, in any order:
 - `manager-initialize-curve.ts` → `trustful:curve:init`
 - `manager-borrow-curve.ts` → `trustful:curve:borrow`
 - (any `manager-repay-curve` once present) → `trustful:curve:repay`
-- `admin-add-adaptor.ts` → `trustful:admin:add-adaptor`
-- `admin-remove-adaptor.ts` → `trustful:admin:remove-adaptor`
+- `admin-add-adaptor.ts` → `vault:add-adaptor` (generic core builder; VOL-224) — done; see [adaptor-admin.md](./adaptor-admin.md)
+- `admin-remove-adaptor.ts` → `vault:remove-adaptor` (generic core builder; VOL-224) — done
 
 ## 3. CLI commands
 
