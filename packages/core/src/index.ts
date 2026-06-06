@@ -14,4 +14,5 @@ export * from "./vault/constants.js";
 export * from "./vault/config.js";
 export * from "./vault/operations.js";
 export * from "./vault/admin.js";
+export * from "./vault/adaptor.js";
 export * from "./vault/queries.js";

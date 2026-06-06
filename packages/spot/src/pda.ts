@@ -34,6 +34,37 @@ export async function findSpotOracleInitReceiptPda(args: {
   return pda;
 }
 
+/** Jupiter Lend `f_token_mint` PDA for a vault asset mint. */
+async function findJupiterFTokenMintPda(assetMint: Address): Promise<Address> {
+  const [fTokenMint] = await getProgramDerivedAddress({
+    programAddress: JUPITER_LEND_PROGRAM_ID,
+    seeds: [SEEDS.F_TOKEN_MINT, addressEncoder.encode(assetMint)],
+  });
+  return fTokenMint;
+}
+
+/**
+ * Jupiter Lend `lending` PDA — the address used as the Voltr strategy id for the
+ * Earn strategy. The earn operations and the direct-withdraw initialization both
+ * key off this. Pass a precomputed `fTokenMint` to skip re-deriving it.
+ */
+export async function findJupiterLendingPda(args: {
+  assetMint: Address;
+  fTokenMint?: Address;
+}): Promise<Address> {
+  const fTokenMint =
+    args.fTokenMint ?? (await findJupiterFTokenMintPda(args.assetMint));
+  const [lending] = await getProgramDerivedAddress({
+    programAddress: JUPITER_LEND_PROGRAM_ID,
+    seeds: [
+      SEEDS.LENDING,
+      addressEncoder.encode(args.assetMint),
+      addressEncoder.encode(fTokenMint),
+    ],
+  });
+  return lending;
+}
+
 /**
  * Every account the Jupiter Earn (lending) strategy touches. The strategy
  * address itself is the Jupiter `lending` PDA, so callers that need the vault
@@ -61,22 +92,12 @@ export async function deriveJupiterEarnAccounts(args: {
 }): Promise<JupiterEarnAccounts> {
   const { assetMint } = args;
 
-  const [fTokenMint] = await getProgramDerivedAddress({
-    programAddress: JUPITER_LEND_PROGRAM_ID,
-    seeds: [SEEDS.F_TOKEN_MINT, addressEncoder.encode(assetMint)],
-  });
+  const fTokenMint = await findJupiterFTokenMintPda(assetMint);
   const [lendingAdmin] = await getProgramDerivedAddress({
     programAddress: JUPITER_LEND_PROGRAM_ID,
     seeds: [SEEDS.LENDING_ADMIN],
   });
-  const [lending] = await getProgramDerivedAddress({
-    programAddress: JUPITER_LEND_PROGRAM_ID,
-    seeds: [
-      SEEDS.LENDING,
-      addressEncoder.encode(assetMint),
-      addressEncoder.encode(fTokenMint),
-    ],
-  });
+  const lending = await findJupiterLendingPda({ assetMint, fTokenMint });
   const [supplyTokenReservesLiquidity] = await getProgramDerivedAddress({
     programAddress: JUPITER_LIQUIDITY_PROGRAM_ID,
     seeds: [SEEDS.RESERVE, addressEncoder.encode(assetMint)],
