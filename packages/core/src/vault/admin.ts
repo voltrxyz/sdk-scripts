@@ -140,7 +140,7 @@ export async function buildInitVaultWithMetadataOperation(
     lpTokenMetadata: args.lpTokenMetadata,
   });
   return {
-    label: "vault:init-with-metadata",
+    label: "vault:init-and-set-token-metadata",
     instructions: [initializeVaultIx, createLpMetadataIx],
     lookupTableAddresses: args.lookupTableAddresses,
   };

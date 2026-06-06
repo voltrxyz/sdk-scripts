@@ -1,7 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { address, getAddressEncoder } from "@solana/kit";
-import { serializeVaultConfigValue, VaultConfigField } from "./config.js";
+import {
+  parseVaultConfigField,
+  serializeVaultConfigValue,
+  VAULT_CONFIG_FIELD_NAMES,
+  vaultConfigFieldKind,
+  VaultConfigField,
+} from "./config.js";
 
 test("serializeVaultConfigValue encodes u64 fields little-endian", () => {
   const bytes = serializeVaultConfigValue(VaultConfigField.MaxCap, 1n);
@@ -41,6 +47,46 @@ test("serializeVaultConfigValue encodes address fields as 32 bytes", () => {
   const bytes = serializeVaultConfigValue(VaultConfigField.Manager, manager);
   assert.equal(bytes.length, 32);
   assert.deepEqual([...bytes], [...getAddressEncoder().encode(manager)]);
+});
+
+test("vaultConfigFieldKind classifies every field's encoding", () => {
+  assert.equal(vaultConfigFieldKind(VaultConfigField.MaxCap), "u64");
+  assert.equal(
+    vaultConfigFieldKind(VaultConfigField.WithdrawalWaitingPeriod),
+    "u64"
+  );
+  assert.equal(
+    vaultConfigFieldKind(VaultConfigField.ManagerPerformanceFee),
+    "u16"
+  );
+  assert.equal(
+    vaultConfigFieldKind(VaultConfigField.DisabledOperations),
+    "u16"
+  );
+  assert.equal(vaultConfigFieldKind(VaultConfigField.Manager), "address");
+  assert.equal(vaultConfigFieldKind(VaultConfigField.PendingAdmin), "address");
+});
+
+test("parseVaultConfigField maps kebab-case names to the enum", () => {
+  assert.equal(parseVaultConfigField("max-cap"), VaultConfigField.MaxCap);
+  assert.equal(
+    parseVaultConfigField("pending-admin"),
+    VaultConfigField.PendingAdmin
+  );
+  // MaxCap is 0; a naive truthiness check would misreport it as unknown.
+  assert.equal(VAULT_CONFIG_FIELD_NAMES.includes("max-cap"), true);
+});
+
+test("parseVaultConfigField rejects an unknown field, listing valid names", () => {
+  assert.throws(
+    () => parseVaultConfigField("bogus-field"),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /Unknown vault config field "bogus-field"/);
+      assert.match(error.message, /max-cap/);
+      return true;
+    }
+  );
 });
 
 test("serializeVaultConfigValue rejects mismatched value types", () => {

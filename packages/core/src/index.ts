@@ -1,4 +1,9 @@
-export { address, type Address, type KeyPairSigner } from "@solana/kit";
+export {
+  address,
+  generateKeyPairSigner,
+  type Address,
+  type KeyPairSigner,
+} from "@solana/kit";
 export * from "./types.js";
 export * from "./profile.js";
 export * from "./env.js";
