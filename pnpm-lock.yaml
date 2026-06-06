@@ -23,6 +23,15 @@ importers:
       '@voltr/scripts-core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@voltr/scripts-kamino':
+        specifier: workspace:*
+        version: link:../../packages/kamino
+      '@voltr/scripts-spot':
+        specifier: workspace:*
+        version: link:../../packages/spot
+      '@voltr/scripts-trustful':
+        specifier: workspace:*
+        version: link:../../packages/trustful
       commander:
         specifier: ^12.1.0
         version: 12.1.0

@@ -8,7 +8,7 @@
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
-    "cli": "pnpm --filter @voltr/scripts-cli dev"
+    "cli": "tsx apps/cli/src/index.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.10",
