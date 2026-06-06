@@ -108,11 +108,11 @@ a REST API, not a web3.js SDK), so no web3.js types are pulled in.
 
 | Legacy script | New command | Builder / query |
 | --- | --- | --- |
-| `manager-initialize-spot.ts` | `spot:spot:init` | `buildSpotInitOperation` (`operations/spot.ts`) |
-| `manager-buy-spot.ts` | `spot:spot:buy` | `buildSpotBuyOperation` (`operations/spot.ts`) |
-| `manager-sell-spot.ts` | `spot:spot:sell` | `buildSpotSellOperation` (`operations/spot.ts`) |
+| `manager-initialize-spot.ts` | `spot:spot:init` | `buildSpotSpotInitOperation` (`operations/spot.ts`) |
+| `manager-buy-spot.ts` | `spot:spot:buy` | `buildSpotSpotBuyOperation` (`operations/spot.ts`) |
+| `manager-sell-spot.ts` | `spot:spot:sell` | `buildSpotSpotSellOperation` (`operations/spot.ts`) |
 | `manager-initialize-earn.ts` (tx 1) | `spot:earn:init` | `buildSpotEarnInitOperation` (`operations/earn.ts`) |
-| `manager-initialize-earn.ts` (tx 2, optional LUT) | `spot:earn:extend-lut` | `buildSpotEarnExtendLookupTableOperation` (`operations/earn.ts`) |
+| `manager-initialize-earn.ts` (tx 2, optional LUT) | `spot:earn:extend-lut` | `buildSpotEarnExtendLutOperation` (`operations/earn.ts`) |
 | `manager-deposit-earn.ts` | `spot:earn:deposit` | `buildSpotEarnDepositOperation` (`operations/earn.ts`) |
 | `manager-withdraw-earn.ts` | `spot:earn:withdraw` | `buildSpotEarnWithdrawOperation` (`operations/earn.ts`) |
 | `query-strategy-positions.ts` | `spot:query:strategy-positions` | `querySpotStrategyPositions` (`queries/strategy-positions.ts`) |
@@ -126,7 +126,7 @@ Notes:
   into `spot:earn:init` and `spot:earn:extend-lut`.
 - **`spot:spot:sell` corrects a latent bug.** The legacy `manager-sell-spot.ts`
   passed `amountIn = 0` (and the asset→foreign direction) to its Jupiter helper,
-  so it never actually built a swap. `buildSpotSellOperation` implements the
+  so it never actually built a swap. `buildSpotSpotSellOperation` implements the
   intended behavior — a foreign→asset swap of `amount`, symmetric with buy.
 - Jupiter swap setup is encapsulated in `packages/spot/src/jupiter.ts`
   (`setupJupiterSwap`) and unit-tested in `jupiter.test.ts` independently of the

@@ -4,8 +4,8 @@ import {
   assertBuiltOperationShape,
   createFakeScriptContext,
 } from "@voltr/scripts-core/testing";
-import type { SpotSwapArgs } from "./spot.js";
-import { buildSpotBuyOperation, buildSpotSellOperation } from "./spot.js";
+import type { SpotSpotSwapArgs } from "./spot.js";
+import { buildSpotSpotBuyOperation, buildSpotSpotSellOperation } from "./spot.js";
 
 const USDC = address("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 const TOKEN_PROGRAM = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
@@ -14,7 +14,7 @@ const FOREIGN_MINT = address("So11111111111111111111111111111111111111112");
 const ASSET_ORACLE = address("ComputeBudget111111111111111111111111111111");
 const FOREIGN_ORACLE = address("AddressLookupTab1e1111111111111111111111111");
 
-function swapArgs(manager: KeyPairSigner): SpotSwapArgs {
+function swapArgs(manager: KeyPairSigner): SpotSpotSwapArgs {
   return {
     manager,
     vault: VAULT,
@@ -33,7 +33,7 @@ function swapArgs(manager: KeyPairSigner): SpotSwapArgs {
 test("spot:spot:buy builds the expected operation offline", async () => {
   const ctx = createFakeScriptContext();
   const manager = await generateKeyPairSigner();
-  const operation = await buildSpotBuyOperation(ctx, swapArgs(manager));
+  const operation = await buildSpotSpotBuyOperation(ctx, swapArgs(manager));
 
   assertBuiltOperationShape(operation, {
     label: "spot:spot:buy",
@@ -44,7 +44,7 @@ test("spot:spot:buy builds the expected operation offline", async () => {
 test("spot:spot:sell builds the expected operation offline", async () => {
   const ctx = createFakeScriptContext();
   const manager = await generateKeyPairSigner();
-  const operation = await buildSpotSellOperation(ctx, swapArgs(manager));
+  const operation = await buildSpotSpotSellOperation(ctx, swapArgs(manager));
 
   assertBuiltOperationShape(operation, {
     label: "spot:spot:sell",

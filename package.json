@@ -15,5 +15,10 @@
     "@types/node": "^22.10.10",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "@kamino-finance/farms-sdk": "3.2.24"
+    }
   }
 }

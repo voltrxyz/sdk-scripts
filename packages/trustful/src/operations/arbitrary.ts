@@ -1,6 +1,8 @@
 import { AccountRole, type Address, type Instruction, type KeyPairSigner } from "@solana/kit";
 import {
+  encodeU64Le,
   setupTokenAccount,
+  withRemainingAccounts,
   type BuiltOperation,
   type ScriptContext,
 } from "@voltr/scripts-core";
@@ -13,10 +15,9 @@ import {
   TRUSTFUL_ADAPTOR_PROGRAM_ID,
   TRUSTFUL_DISCRIMINATOR,
 } from "../constants.js";
-import { encodeU64LE, withRemainingAccounts } from "../instructions.js";
-import { deriveTrustfulStrategyAccounts } from "../pdas.js";
+import { deriveTrustfulStrategyAccounts } from "../pda.js";
 
-export interface TrustfulInitializeArbitraryArgs {
+export interface TrustfulArbitraryInitArgs {
   manager: KeyPairSigner;
   vault: Address;
   assetMint: Address;
@@ -27,15 +28,15 @@ export interface TrustfulInitializeArbitraryArgs {
 }
 
 /**
- * `trustful:arbitrary:init` — migrated from `manager-initialize-arbitrary.ts`.
+ * `trustful:arbitrary:init` — Migrated from `manager-initialize-arbitrary.ts`.
  *
  * Creates the vault-strategy authority's asset ATA (if missing) and initializes
  * the arbitrary strategy via the vault SDK with the adaptor's
  * `INITIALIZE_ARBITRARY` discriminator.
  */
-export async function buildTrustfulInitializeArbitraryOperation(
+export async function buildTrustfulArbitraryInitOperation(
   ctx: ScriptContext,
-  args: TrustfulInitializeArbitraryArgs
+  args: TrustfulArbitraryInitArgs
 ): Promise<BuiltOperation> {
   const { strategy, vaultStrategyAuth } = await deriveTrustfulStrategyAccounts(
     args.vault,
@@ -74,7 +75,7 @@ export async function buildTrustfulInitializeArbitraryOperation(
   };
 }
 
-export interface TrustfulDepositArbitraryArgs {
+export interface TrustfulArbitraryDepositArgs {
   manager: KeyPairSigner;
   vault: Address;
   assetMint: Address;
@@ -89,7 +90,7 @@ export interface TrustfulDepositArbitraryArgs {
 }
 
 /**
- * `trustful:arbitrary:deposit` — migrated from `manager-deposit-arbitrary.ts`.
+ * `trustful:arbitrary:deposit` — Migrated from `manager-deposit-arbitrary.ts`.
  *
  * Ensures the withdrawal-holding ATA and the vault-strategy ATA exist, then
  * deposits into the arbitrary strategy, forwarding `destinationAssetTokenAccount`
@@ -99,9 +100,9 @@ export interface TrustfulDepositArbitraryArgs {
  * (the legacy script logged it as "transfer tokens back to …" so the manager
  * knows where to return strategy assets before withdrawing).
  */
-export async function buildTrustfulDepositArbitraryOperation(
+export async function buildTrustfulArbitraryDepositOperation(
   ctx: ScriptContext,
-  args: TrustfulDepositArbitraryArgs
+  args: TrustfulArbitraryDepositArgs
 ): Promise<BuiltOperation> {
   const { strategy, vaultStrategyAuth, withdrawalHoldingAuth } =
     await deriveTrustfulStrategyAccounts(args.vault, args.strategySeedString);
@@ -137,7 +138,7 @@ export async function buildTrustfulDepositArbitraryOperation(
     instructionDiscriminator: new Uint8Array(
       TRUSTFUL_DISCRIMINATOR.DEPOSIT_ARBITRARY
     ),
-    additionalArgs: encodeU64LE(args.positionValueAfterDeposit),
+    additionalArgs: encodeU64Le(args.positionValueAfterDeposit),
   });
 
   instructions.push(
@@ -154,7 +155,7 @@ export async function buildTrustfulDepositArbitraryOperation(
   };
 }
 
-export interface TrustfulWithdrawArbitraryArgs {
+export interface TrustfulArbitraryWithdrawArgs {
   manager: KeyPairSigner;
   vault: Address;
   assetMint: Address;
@@ -167,16 +168,16 @@ export interface TrustfulWithdrawArbitraryArgs {
 }
 
 /**
- * `trustful:arbitrary:withdraw` — migrated from `manager-withdraw-arbitrary.ts`.
+ * `trustful:arbitrary:withdraw` — Migrated from `manager-withdraw-arbitrary.ts`.
  *
  * Ensures the withdrawal-holding ATA and vault-strategy ATA exist, then
  * withdraws from the arbitrary strategy. The withdrawal-holding authority and
  * its ATA are forwarded as remaining accounts; the post-withdraw position value
  * is the adaptor's `additional_args`.
  */
-export async function buildTrustfulWithdrawArbitraryOperation(
+export async function buildTrustfulArbitraryWithdrawOperation(
   ctx: ScriptContext,
-  args: TrustfulWithdrawArbitraryArgs
+  args: TrustfulArbitraryWithdrawArgs
 ): Promise<BuiltOperation> {
   const { strategy, vaultStrategyAuth, withdrawalHoldingAuth } =
     await deriveTrustfulStrategyAccounts(args.vault, args.strategySeedString);
@@ -212,7 +213,7 @@ export async function buildTrustfulWithdrawArbitraryOperation(
     instructionDiscriminator: new Uint8Array(
       TRUSTFUL_DISCRIMINATOR.WITHDRAW_ARBITRARY
     ),
-    additionalArgs: encodeU64LE(args.positionValueAfterWithdraw),
+    additionalArgs: encodeU64Le(args.positionValueAfterWithdraw),
   });
 
   instructions.push(

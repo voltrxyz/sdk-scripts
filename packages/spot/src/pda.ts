@@ -6,11 +6,11 @@ import {
 import { findAssociatedTokenPda } from "@solana-program/token";
 import { findVaultStrategyAuthPda } from "@voltr/vault-sdk";
 import {
-  ADAPTOR_PROGRAM_ID,
   JUPITER_LEND_PROGRAM_ID,
   JUPITER_LIQUIDITY_PROGRAM_ID,
   JUPITER_REWARDS_RATE_PROGRAM_ID,
-  SEEDS,
+  SPOT_ADAPTOR_PROGRAM_ID,
+  SPOT_SEEDS,
 } from "./constants.js";
 
 const addressEncoder = getAddressEncoder();
@@ -24,9 +24,9 @@ export async function findSpotOracleInitReceiptPda(args: {
   mint: Address;
 }): Promise<Address> {
   const [pda] = await getProgramDerivedAddress({
-    programAddress: ADAPTOR_PROGRAM_ID,
+    programAddress: SPOT_ADAPTOR_PROGRAM_ID,
     seeds: [
-      SEEDS.ORACLE_INIT_RECEIPT,
+      SPOT_SEEDS.ORACLE_INIT_RECEIPT,
       addressEncoder.encode(args.vaultStrategyAuth),
       addressEncoder.encode(args.mint),
     ],
@@ -38,7 +38,7 @@ export async function findSpotOracleInitReceiptPda(args: {
 async function findJupiterFTokenMintPda(assetMint: Address): Promise<Address> {
   const [fTokenMint] = await getProgramDerivedAddress({
     programAddress: JUPITER_LEND_PROGRAM_ID,
-    seeds: [SEEDS.F_TOKEN_MINT, addressEncoder.encode(assetMint)],
+    seeds: [SPOT_SEEDS.F_TOKEN_MINT, addressEncoder.encode(assetMint)],
   });
   return fTokenMint;
 }
@@ -57,7 +57,7 @@ export async function findJupiterLendingPda(args: {
   const [lending] = await getProgramDerivedAddress({
     programAddress: JUPITER_LEND_PROGRAM_ID,
     seeds: [
-      SEEDS.LENDING,
+      SPOT_SEEDS.LENDING,
       addressEncoder.encode(args.assetMint),
       addressEncoder.encode(fTokenMint),
     ],
@@ -95,37 +95,37 @@ export async function deriveJupiterEarnAccounts(args: {
   const fTokenMint = await findJupiterFTokenMintPda(assetMint);
   const [lendingAdmin] = await getProgramDerivedAddress({
     programAddress: JUPITER_LEND_PROGRAM_ID,
-    seeds: [SEEDS.LENDING_ADMIN],
+    seeds: [SPOT_SEEDS.LENDING_ADMIN],
   });
   const lending = await findJupiterLendingPda({ assetMint, fTokenMint });
   const [supplyTokenReservesLiquidity] = await getProgramDerivedAddress({
     programAddress: JUPITER_LIQUIDITY_PROGRAM_ID,
-    seeds: [SEEDS.RESERVE, addressEncoder.encode(assetMint)],
+    seeds: [SPOT_SEEDS.RESERVE, addressEncoder.encode(assetMint)],
   });
   const [rateModel] = await getProgramDerivedAddress({
     programAddress: JUPITER_LIQUIDITY_PROGRAM_ID,
-    seeds: [SEEDS.RATE_MODEL, addressEncoder.encode(assetMint)],
+    seeds: [SPOT_SEEDS.RATE_MODEL, addressEncoder.encode(assetMint)],
   });
   const [userClaim] = await getProgramDerivedAddress({
     programAddress: JUPITER_LIQUIDITY_PROGRAM_ID,
     seeds: [
-      SEEDS.USER_CLAIM,
+      SPOT_SEEDS.USER_CLAIM,
       addressEncoder.encode(lendingAdmin),
       addressEncoder.encode(assetMint),
     ],
   });
   const [liquidity] = await getProgramDerivedAddress({
     programAddress: JUPITER_LIQUIDITY_PROGRAM_ID,
-    seeds: [SEEDS.LIQUIDITY],
+    seeds: [SPOT_SEEDS.LIQUIDITY],
   });
   const [rewardsRateModel] = await getProgramDerivedAddress({
     programAddress: JUPITER_REWARDS_RATE_PROGRAM_ID,
-    seeds: [SEEDS.LENDING_REWARDS_RATE_MODEL, addressEncoder.encode(assetMint)],
+    seeds: [SPOT_SEEDS.LENDING_REWARDS_RATE_MODEL, addressEncoder.encode(assetMint)],
   });
   const [lendingSupplyPositionOnLiquidity] = await getProgramDerivedAddress({
     programAddress: JUPITER_LIQUIDITY_PROGRAM_ID,
     seeds: [
-      SEEDS.USER_SUPPLY_POSITION,
+      SPOT_SEEDS.USER_SUPPLY_POSITION,
       addressEncoder.encode(assetMint),
       addressEncoder.encode(lending),
     ],

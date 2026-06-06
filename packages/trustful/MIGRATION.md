@@ -12,13 +12,13 @@ Builders follow the operation-builder contract in
 
 | Legacy script                    | Builder                                    | Command label               | Notes |
 | -------------------------------- | ------------------------------------------ | --------------------------- | ----- |
-| `manager-initialize-arbitrary.ts`| `buildTrustfulInitializeArbitraryOperation`| `trustful:arbitrary:init`    | Sets up the vault-strategy ATA, then `initialize_strategy`. |
-| `manager-deposit-arbitrary.ts`   | `buildTrustfulDepositArbitraryOperation`   | `trustful:arbitrary:deposit` | Forwards `destinationAssetTokenAccount` as a remaining account; position value → `additional_args`. Withdrawal-holding account returned as `BuiltOperation.metadata`. |
-| `manager-withdraw-arbitrary.ts`  | `buildTrustfulWithdrawArbitraryOperation`  | `trustful:arbitrary:withdraw`| Holding auth + holding ATA forwarded as remaining accounts. |
-| `manager-initialize-curve.ts`    | `buildTrustfulInitializeCurveOperation`    | `trustful:curve:init`        | Sets up holding / vault-strategy / manager ATAs, then `initialize_strategy`. LUT-extend second transaction is **not** bundled — see [LUT extension](#lut-extension-on-curve-init). |
-| `manager-borrow-curve.ts`        | `buildTrustfulBorrowCurveOperation`        | `trustful:curve:borrow`      | Borrow draws from the vault → vault SDK `deposit_strategy` with `BORROW_CURVE`; borrow rate → `additional_args`. |
-| `manager-repay-curve.ts`         | `buildTrustfulRepayCurveOperation`         | `trustful:curve:repay`       | Two ix: adaptor `transfer_curve` (hand-built) + vault SDK `withdraw_strategy` with `REPAY_CURVE`. Strategy seed corrected — see [Curve strategy seed](#curve-strategy-seed-repay-correction). |
-| `manager-remove-curve.ts`        | `buildTrustfulRemoveCurveOperation`        | `trustful:curve:remove`      | `close_strategy`. |
+| `manager-initialize-arbitrary.ts`| `buildTrustfulArbitraryInitOperation`| `trustful:arbitrary:init`    | Sets up the vault-strategy ATA, then `initialize_strategy`. |
+| `manager-deposit-arbitrary.ts`   | `buildTrustfulArbitraryDepositOperation`   | `trustful:arbitrary:deposit` | Forwards `destinationAssetTokenAccount` as a remaining account; position value → `additional_args`. Withdrawal-holding account returned as `BuiltOperation.metadata`. |
+| `manager-withdraw-arbitrary.ts`  | `buildTrustfulArbitraryWithdrawOperation`  | `trustful:arbitrary:withdraw`| Holding auth + holding ATA forwarded as remaining accounts. |
+| `manager-initialize-curve.ts`    | `buildTrustfulCurveInitOperation`    | `trustful:curve:init`        | Sets up holding / vault-strategy / manager ATAs, then `initialize_strategy`. LUT-extend second transaction is **not** bundled — see [LUT extension](#lut-extension-on-curve-init). |
+| `manager-borrow-curve.ts`        | `buildTrustfulCurveBorrowOperation`        | `trustful:curve:borrow`      | Borrow draws from the vault → vault SDK `deposit_strategy` with `BORROW_CURVE`; borrow rate → `additional_args`. |
+| `manager-repay-curve.ts`         | `buildTrustfulCurveRepayOperation`         | `trustful:curve:repay`       | Two ix: adaptor `transfer_curve` (hand-built) + vault SDK `withdraw_strategy` with `REPAY_CURVE`. Strategy seed corrected — see [Curve strategy seed](#curve-strategy-seed-repay-correction). |
+| `manager-remove-curve.ts`        | `buildTrustfulCurveRemoveOperation`        | `trustful:curve:remove`      | `close_strategy`. |
 | `admin-add-adaptor.ts`           | — (skipped, see below)                     | `trustful:admin:add-adaptor` | **Deferred to VOL-224** — generic adapter admin helper. |
 | `admin-remove-adaptor.ts`        | — (skipped, see below)                     | `trustful:admin:remove-adaptor` | **Deferred to VOL-224** — generic adapter admin helper. |
 
@@ -37,9 +37,9 @@ out of scope here).
 | ------------------------------- | ------------------------------------------------------------- |
 | `strategySeedString`            | profile `integrations.trustful.strategySeedString` → arbitrary builders' `strategySeedString` arg |
 | `depositStrategyAmount` / `withdrawStrategyAmount` / `borrowStrategyAmount` / `repayStrategyAmount` | builder `amount` arg |
-| `positionValueAfterDeposit`     | `buildTrustfulDepositArbitraryOperation` `positionValueAfterDeposit` arg |
-| `positionValueAfterWithdraw`    | `buildTrustfulWithdrawArbitraryOperation` `positionValueAfterWithdraw` arg |
-| `destinationAssetTokenAccount`  | `buildTrustfulDepositArbitraryOperation` `destinationAssetTokenAccount` arg |
+| `positionValueAfterDeposit`     | `buildTrustfulArbitraryDepositOperation` `positionValueAfterDeposit` arg |
+| `positionValueAfterWithdraw`    | `buildTrustfulArbitraryWithdrawOperation` `positionValueAfterWithdraw` arg |
+| `destinationAssetTokenAccount`  | `buildTrustfulArbitraryDepositOperation` `destinationAssetTokenAccount` arg |
 | `borrowRateBps`                 | curve borrow/repay `borrowRateBps` arg |
 | curve strategy seed (`SEEDS.CURVE`) | constant `TRUSTFUL_SEEDS.CURVE` in `constants.ts` |
 
@@ -62,9 +62,9 @@ instructions parameterized by an 8-byte discriminator.
   [`constants.ts`](./src/constants.ts) (`TRUSTFUL_ADAPTOR_PROGRAM_ID`,
   `TRUSTFUL_DISCRIMINATOR`), satisfying "keep adaptor program ID and
   discriminators in the Trustful package";
-- `transfer_curve` is hand-built in [`instructions.ts`](./src/instructions.ts)
-  with `@solana/kit` — discriminator + `u64` amount + `u16` borrow-rate, nine
-  accounts in IDL order.
+- `transfer_curve` is hand-built in
+  [`operations/curve.ts`](./src/operations/curve.ts) with `@solana/kit` —
+  discriminator + `u64` amount + `u16` borrow-rate, nine accounts in IDL order.
 
 This keeps the package kit-native and free of `@coral-xyz/anchor` /
 `@solana/web3.js`, consistent with the rest of the monorepo. The hand-built
@@ -110,7 +110,7 @@ from this package so that work can consume it without duplicating the ID.
 
 The legacy deposit script printed `"… transfer tokens back to: <holding account>"`.
 `BuiltOperation` gained an optional `metadata?: Record<string, string>` field
-(the smallest additive change to core). `buildTrustfulDepositArbitraryOperation`
+(the smallest additive change to core). `buildTrustfulArbitraryDepositOperation`
 returns `{ withdrawalHoldingAccount }`; the processor prints `metadata` in
 `print`/`execute` modes, preserving the message end-to-end without coupling the
 builder to `console.log`.

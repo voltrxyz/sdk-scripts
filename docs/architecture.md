@@ -38,6 +38,7 @@ Owns everything that is not protocol-specific:
 - optimized send with compute-unit estimation and priority fee (`sendAndConfirmOptimizedTx`);
 - lookup-table fetch + extend helpers (`getAddressesByLookupTable`, `buildExtendLookupTableInstructions`);
 - token-account setup (`setupTokenAccount`);
+- kit-native account-meta helpers (`readonlyAccount`, `writableAccount`, `withRemainingAccounts`) and little-endian integer codecs (`encodeU64Le`, `encodeU16Le`) shared by every adapter;
 - web3.js ↔ kit interop (`publicKeyToAddress`, `kitAccountMetaFromWeb3`, `appendRemainingAccounts`);
 - builders for the shared vault primitive under `src/vault/` (`vault:*` commands such as `buildDepositVaultOperation`).
 
@@ -83,6 +84,99 @@ The CLI must stay thin. Each command is "parse flags → coerce values → call 
   - `signers.ts` — `loadRoleSigner(role, flagValue)` resolves an `admin` / `manager` / `user` keypair from the `--<role>-keypair` flag or the `<ROLE>_KEYPAIR` env var.
   - `output.ts` — formatting helpers for non-transaction output (summaries, queries).
   - `errors.ts` — `CliError` (user-facing, no stack trace) and the top-level `reportError` handler.
+
+## Adapter package standard
+
+All three adapter packages (`kamino`, `spot`, `trustful`) follow one layout and
+naming convention so adding a new integration is a predictable copy. This is the
+standard converged on in VOL-234.
+
+### Directory layout
+
+```text
+packages/<adapter>/src/
+  constants.ts           # program ids, discriminators, seeds
+  pda.ts                 # PDA derivations (always `pda.ts`, never `pdas.ts`)
+  <domain>.ts            # optional domain helper modules (reserve.ts, kvault.ts,
+                         # jupiter.ts, swap.ts): account loaders, decoders
+  operations/
+    <domain>.ts          # one module per strategy domain; all of that domain's
+                         # build…Operation builders live together
+    <domain>.test.ts     # offline builder tests for that domain
+  queries/
+    <noun>.ts            # read-only query<…> functions (no transactions)
+  index.ts               # barrel: constants -> helpers -> operations -> queries
+```
+
+- Filenames are kebab-case. Group operation builders by strategy **domain**
+  (`market`/`kvault`, `spot`/`earn`, `arbitrary`/`curve`) rather than one file per
+  action — this keeps each domain's shared internals (a private swap composer, a
+  hand-built instruction) in one cohesive module.
+- An adapter-local `account-meta.ts` is only justified when remaining-account
+  ordering is genuinely protocol-specific and not expressible with the shared
+  core helpers. Generic helpers live in `core`, not the adapter.
+
+### Builders, args, and labels
+
+| Thing            | Convention                                    | Example |
+| ---------------- | --------------------------------------------- | ------- |
+| builder function | `build<Integration><Domain><Action>Operation` | `buildKaminoMarketDepositOperation` |
+| args interface   | `<Integration><Domain><Action>Args`           | `KaminoMarketDepositArgs` |
+| command / label  | `<integration>:<domain>:<action>`             | `kamino:market:deposit` |
+
+The builder `label` MUST equal the CLI command name, and the function / label /
+args names are mechanically derivable from each other (split the label on `:`,
+PascalCase each segment). For Spot the integration and the first strategy domain
+are both `spot`, so the buy builder is `buildSpotSpotBuyOperation` with label
+`spot:spot:buy`.
+
+### Constants
+
+- `<INTEGRATION>_ADAPTOR_PROGRAM_ID` — the Voltr adaptor program the vault CPIs into.
+- `<INTEGRATION>_DISCRIMINATOR` — a `Record<string, readonly number[]>`. Store
+  plain number arrays and wrap with `new Uint8Array(...)` at the call site so each
+  instruction gets its own copy.
+- `<INTEGRATION>_SEEDS` — PDA seed-string constants, when the adapter has them.
+
+### Shared helpers (from `@voltr/scripts-core`)
+
+Do not reimplement these per adapter:
+
+- `readonlyAccount(addr)`, `writableAccount(addr)` — kit `AccountMeta` builders.
+- `withRemainingAccounts(ix, metas)` — append kit-native remaining accounts.
+- `encodeU64Le(bigint)`, `encodeU16Le(number)` — little-endian integer bytes.
+- `setupTokenAccount`, LUT, signer, and tx helpers (see "Package responsibilities").
+- web3.js → kit conversion at a legacy-SDK boundary via `interop/web3-kit.ts`
+  (`publicKeyToAddress`, `kitAccountMetaFromWeb3`, `appendRemainingAccounts`).
+
+### Exports and tests
+
+- `index.ts` is organized constants → PDA / domain helpers → operations →
+  queries. Do not export internal-only helpers (a hand-built instruction, a
+  private encoder).
+- Co-locate offline builder tests as `operations/<domain>.test.ts` using
+  `createFakeScriptContext` + `assertBuiltOperationShape`. Builders that must
+  decode on-chain state to derive accounts (e.g. Kamino reserves) instead assert
+  a clear failure when that state is absent. Pure PDA / encoding helpers are
+  tested in `core`.
+- Every package manifest exposes the same `build`, `typecheck`, and `test`
+  scripts. The repo-root `pnpm typecheck` / `pnpm test` / `pnpm check` remain the
+  canonical offline gate (a single-package `typecheck` resolves `core` from its
+  built `dist/`, so build `core` first or just use the root script).
+
+### Template: adding a new integration `<x>`
+
+1. `packages/<x>/` with `package.json` (name `@voltr/scripts-<x>`, the standard
+   `build` / `typecheck` / `test` scripts, its SDK deps) and a build `tsconfig.json`.
+2. `constants.ts` with `<X>_ADAPTOR_PROGRAM_ID`, `<X>_DISCRIMINATOR`, `<X>_SEEDS`.
+3. `pda.ts` for derivations; optional `<domain>.ts` helper modules for account
+   loaders / decoders.
+4. `operations/<domain>.ts` exporting `build<X><Domain><Action>Operation`
+   builders, plus `operations/<domain>.test.ts`.
+5. `queries/<noun>.ts` for read-only `query<X><Noun>` functions, if any.
+6. `index.ts` barrel, organized as above.
+7. Add the package path to `tsconfig.check.json` `paths`, and to the CLI's
+   `package.json` dependencies once the CLI consumes it.
 
 ## Operation-builder contract
 
@@ -214,7 +308,7 @@ Default to `@solana/kit` and `@solana-program/*` throughout. Some upstream SDKs 
    These are migration references only. Do not edit them as part of migration work.
 2. **Decide the package.**
    - Vault-level (no adapter SDK) → `packages/core/src/vault/<name>.ts`.
-   - Adapter-specific → `packages/<adapter>/src/operations/<name>.ts`.
+   - Adapter-specific → `packages/<adapter>/src/operations/<domain>.ts` (grouped by strategy domain).
    - Read-only → `packages/<scope>/src/queries/<name>.ts`.
 3. **Write the builder.** Follow the contract above:
    - Export `<X>Args` typed in kit terms.
@@ -255,7 +349,7 @@ export function registerKaminoCommands(program: Command): void {
       const processorOptions = resolveProcessorOptions(globals);
       const manager = await loadRoleSigner("manager", options.managerKeypair);
 
-      const operation = await buildKaminoDepositMarketOperation(ctx, {
+      const operation = await buildKaminoMarketDepositOperation(ctx, {
         manager,
         vault,
         assetMint,

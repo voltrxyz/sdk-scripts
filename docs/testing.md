@@ -106,19 +106,19 @@ import {
   createFakeScriptContext,
   assertBuiltOperationShape,
 } from "@voltr/scripts-core/testing";
-import { buildKaminoDepositMarketOperation } from "./deposit-market.js";
+import { buildKaminoKvaultInitOperation } from "./kvault.js";
 
-test("kamino:market:deposit builds the expected operation", async () => {
+test("kamino:kvault:init builds the expected operation", async () => {
   const ctx = createFakeScriptContext();
   const manager = await generateKeyPairSigner();
 
-  const operation = await buildKaminoDepositMarketOperation(ctx, {
+  const operation = await buildKaminoKvaultInitOperation(ctx, {
     manager,
     /* …kit-typed args… */
   });
 
   assertBuiltOperationShape(operation, {
-    label: "kamino:market:deposit",
+    label: "kamino:kvault:init",
     minInstructions: 1,
   });
 });

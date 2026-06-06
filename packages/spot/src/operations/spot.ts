@@ -13,15 +13,15 @@ import {
 } from "@voltr/vault-sdk";
 import {
   setupTokenAccount,
+  withRemainingAccounts,
   type BuiltOperation,
   type ScriptContext,
 } from "@voltr/scripts-core";
-import { ADAPTOR_PROGRAM_ID, DISCRIMINATOR } from "../constants.js";
+import { SPOT_ADAPTOR_PROGRAM_ID, SPOT_DISCRIMINATOR } from "../constants.js";
 import { findSpotOracleInitReceiptPda } from "../pda.js";
 import { setupJupiterSwap } from "../jupiter.js";
-import { appendRemainingAccounts } from "../util.js";
 
-export interface SpotInitArgs {
+export interface SpotSpotInitArgs {
   /** Manager keypair; also funds the new strategy accounts (payer). */
   manager: KeyPairSigner;
   vault: Address;
@@ -34,7 +34,7 @@ export interface SpotInitArgs {
   lookupTableAddresses?: Address[];
 }
 
-export interface SpotSwapArgs {
+export interface SpotSpotSwapArgs {
   manager: KeyPairSigner;
   vault: Address;
   assetMint: Address;
@@ -65,9 +65,9 @@ export interface SpotSwapArgs {
  *
  * Migrated from `manager-initialize-spot.ts`.
  */
-export async function buildSpotInitOperation(
+export async function buildSpotSpotInitOperation(
   ctx: ScriptContext,
-  args: SpotInitArgs
+  args: SpotSpotInitArgs
 ): Promise<BuiltOperation> {
   const instructions: Instruction[] = [];
 
@@ -107,8 +107,8 @@ export async function buildSpotInitOperation(
     manager: args.manager,
     vault: args.vault,
     strategy: args.foreignMint,
-    adaptorProgram: ADAPTOR_PROGRAM_ID,
-    instructionDiscriminator: DISCRIMINATOR.INITIALIZE_SPOT,
+    adaptorProgram: SPOT_ADAPTOR_PROGRAM_ID,
+    instructionDiscriminator: new Uint8Array(SPOT_DISCRIMINATOR.INITIALIZE_SPOT),
     additionalArgs: null,
   });
 
@@ -125,7 +125,7 @@ export async function buildSpotInitOperation(
   ];
 
   instructions.push(
-    appendRemainingAccounts(initializeStrategyIx, remainingAccounts)
+    withRemainingAccounts(initializeStrategyIx, remainingAccounts)
   );
 
   return {
@@ -139,7 +139,7 @@ type SpotSwapDirection = "buy" | "sell";
 
 async function buildSpotSwapOperation(
   ctx: ScriptContext,
-  args: SpotSwapArgs,
+  args: SpotSpotSwapArgs,
   direction: SpotSwapDirection
 ): Promise<BuiltOperation> {
   const instructions: Instruction[] = [];
@@ -213,9 +213,9 @@ async function buildSpotSwapOperation(
     strategy: args.foreignMint,
     vaultAssetMint: args.assetMint,
     assetTokenProgram: args.assetTokenProgram,
-    adaptorProgram: ADAPTOR_PROGRAM_ID,
+    adaptorProgram: SPOT_ADAPTOR_PROGRAM_ID,
     amount: args.amount,
-    instructionDiscriminator: DISCRIMINATOR.SWAP_SPOT,
+    instructionDiscriminator: new Uint8Array(SPOT_DISCRIMINATOR.SWAP_SPOT),
     additionalArgs,
   };
 
@@ -224,7 +224,7 @@ async function buildSpotSwapOperation(
       ? await getDepositStrategyInstructionAsync(strategyInput)
       : await getWithdrawStrategyInstructionAsync(strategyInput);
 
-  instructions.push(appendRemainingAccounts(strategyIx, remainingAccounts));
+  instructions.push(withRemainingAccounts(strategyIx, remainingAccounts));
 
   return {
     label: direction === "buy" ? "spot:spot:buy" : "spot:spot:sell",
@@ -242,9 +242,9 @@ async function buildSpotSwapOperation(
  *
  * Migrated from `manager-buy-spot.ts`.
  */
-export function buildSpotBuyOperation(
+export function buildSpotSpotBuyOperation(
   ctx: ScriptContext,
-  args: SpotSwapArgs
+  args: SpotSpotSwapArgs
 ): Promise<BuiltOperation> {
   return buildSpotSwapOperation(ctx, args, "buy");
 }
@@ -259,9 +259,9 @@ export function buildSpotBuyOperation(
  * foreign→asset swap of `amount` — so that sell is symmetric with buy and
  * produces working swap data.
  */
-export function buildSpotSellOperation(
+export function buildSpotSpotSellOperation(
   ctx: ScriptContext,
-  args: SpotSwapArgs
+  args: SpotSpotSwapArgs
 ): Promise<BuiltOperation> {
   return buildSpotSwapOperation(ctx, args, "sell");
 }

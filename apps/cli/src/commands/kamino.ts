@@ -8,14 +8,9 @@ import {
   requireVaultAddress,
   resolveLookupTableAddresses,
 } from "@voltr/scripts-core";
+import { buildKaminoMarketDepositOperation } from "@voltr/scripts-kamino";
 import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
 import { loadRoleSigner } from "../lib/signers.js";
-
-// NOTE: `@voltr/scripts-kamino` pulls in `@kamino-finance/klend-sdk`, whose
-// transitive deps can fail to resolve in some environments. Import the builder
-// lazily inside the action so a broken adapter dependency only affects this
-// command at runtime, not CLI startup (which would otherwise break `--help`
-// and every other group's commands too).
 
 /**
  * Kamino strategies (`kamino:*`). Each command follows the framework path
@@ -50,9 +45,6 @@ export function registerKaminoCommands(program: Command): void {
       const processorOptions = resolveProcessorOptions(globals);
       const manager = await loadRoleSigner("manager", options.managerKeypair);
 
-      const { buildKaminoMarketDepositOperation } = await import(
-        "@voltr/scripts-kamino"
-      );
       const operation = await buildKaminoMarketDepositOperation(ctx, {
         manager,
         vault,

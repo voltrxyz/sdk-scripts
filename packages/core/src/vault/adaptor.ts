@@ -15,14 +15,14 @@ import type { BuiltOperation, ScriptContext } from "../types.js";
  *
  * Adding/removing an adaptor and initializing a direct-withdraw strategy are
  * vault-level operations: every legacy `admin-add-adaptor.ts` script (Kamino,
- * Spot, Trustful) was byte-for-byte identical except for the `ADAPTOR_PROGRAM_ID`
+ * Spot, Trustful) was byte-for-byte identical except for the adaptor program ID
  * constant it imported, and the instructions come from the base
  * `@voltr/vault-sdk` — not from any adapter SDK. So they live here in core and
  * take `adaptorProgram` (and, for direct-withdraw, `strategy` + the adaptor's
  * `instructionDiscriminator`) as parameters. No adapter program ID is hardcoded
  * in core; the caller passes the adapter package's exported constant (e.g.
- * `KAMINO_ADAPTOR_PROGRAM_ID`, `TRUSTFUL_ADAPTOR_PROGRAM_ID`, Spot's
- * `ADAPTOR_PROGRAM_ID`) or a profile value.
+ * `KAMINO_ADAPTOR_PROGRAM_ID`, `SPOT_ADAPTOR_PROGRAM_ID`,
+ * `TRUSTFUL_ADAPTOR_PROGRAM_ID`) or a profile value.
  *
  * See docs/adaptor-admin.md for the generic-vs-adapter-specific split and the
  * proposed CLI command names.
