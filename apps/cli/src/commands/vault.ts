@@ -2,12 +2,15 @@ import type { Command } from "commander";
 import {
   asAddress,
   buildAcceptVaultAdminOperation,
+  buildAddAdaptorOperation,
   buildCancelRequestWithdrawVaultOperation,
   buildDepositVaultOperation,
   buildHarvestFeeOperation,
+  buildInitDirectWithdrawStrategyOperation,
   buildInitVaultOperation,
   buildInitVaultWithMetadataOperation,
   buildInstantWithdrawVaultOperation,
+  buildRemoveAdaptorOperation,
   buildRequestWithdrawVaultOperation,
   buildSetTokenMetadataOperation,
   buildUpdateVaultConfigOperation,
@@ -20,6 +23,8 @@ import {
   queryVaultPosition,
   requireAssetMint,
   requireAssetTokenProgram,
+  requireKaminoDirectWithdrawDiscriminator,
+  requireKaminoKvault,
   requireVaultAddress,
   resolveLookupTableAddresses,
   VAULT_CONFIG_FIELD_NAMES,
@@ -30,6 +35,7 @@ import {
   type VaultConfigField,
   type VaultInitConfig,
 } from "@voltr/scripts-core";
+import { KAMINO_ADAPTOR_PROGRAM_ID } from "@voltr/scripts-kamino";
 import { CliError } from "../lib/errors.js";
 import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
 import { loadRoleSigner } from "../lib/signers.js";
@@ -804,9 +810,221 @@ function printVaultAddress(vault: Address): void {
   );
 }
 
+/**
+ * Adaptor administration (`vault:add-adaptor`, `vault:remove-adaptor`,
+ * `vault:init-direct-withdraw`). These wrap the generic core builders from
+ * VOL-224 (the instruction comes from the base vault SDK, not an adapter SDK).
+ *
+ * `--adaptor-program` defaults to the Kamino adaptor — the adapter this CLI
+ * ticket (VOL-228) wires — and is overridable for Spot / Trustful. The
+ * direct-withdraw strategy defaults to the profile's Kamino kvault and its
+ * 8-byte discriminator comes from `integrations.kamino.directWithdrawDiscriminator`
+ * (a per-deployment value); see docs/adaptor-admin.md.
+ */
+function registerAdaptorAdminCommands(program: Command): void {
+  const adaptorProgramOption =
+    "--adaptor-program <address>" as const;
+  const adaptorProgramHelp =
+    "adaptor program (default: Kamino adaptor; override for Spot / Trustful)";
+
+  const parseInstructionDiscriminator = (value: string): number[] => {
+    let rawValues: unknown;
+    try {
+      rawValues = value.trim().startsWith("[")
+        ? (JSON.parse(value) as unknown)
+        : value.split(",").map((part) => part.trim());
+    } catch {
+      throw new CliError(
+        "--instruction-discriminator must be 8 comma-separated u8 values"
+      );
+    }
+
+    if (!Array.isArray(rawValues)) {
+      throw new CliError(
+        "--instruction-discriminator must be 8 comma-separated u8 values"
+      );
+    }
+
+    const bytes = rawValues.map((raw) =>
+      typeof raw === "number" ? raw : Number(raw)
+    );
+    if (
+      bytes.length !== 8 ||
+      bytes.some((byte) => !Number.isInteger(byte) || byte < 0 || byte > 255)
+    ) {
+      throw new CliError(
+        "--instruction-discriminator must be 8 comma-separated u8 values"
+      );
+    }
+    return bytes;
+  };
+
+  program
+    .command("vault:add-adaptor")
+    .summary("register an adaptor program on the vault")
+    .description(
+      "Register an adaptor program on the vault so the manager can route strategy CPIs through it. Defaults to the Kamino adaptor."
+    )
+    .option(
+      "--admin-keypair <path>",
+      "admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .option(adaptorProgramOption, adaptorProgramHelp)
+    .action(
+      async (options: { adminKeypair?: string; adaptorProgram?: string }) => {
+        const command = "vault:add-adaptor";
+
+        const { globals, profile, ctx } = await loadCommandContext(program);
+        const vault = requireVaultAddress(profile, { command });
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command,
+        });
+        const adaptorProgram = options.adaptorProgram
+          ? asAddress(options.adaptorProgram, "--adaptor-program")
+          : KAMINO_ADAPTOR_PROGRAM_ID;
+        const processorOptions = resolveProcessorOptions(globals);
+        const admin = await loadRoleSigner("admin", options.adminKeypair);
+
+        const operation = await buildAddAdaptorOperation(ctx, {
+          admin,
+          vault,
+          adaptorProgram,
+          lookupTableAddresses,
+        });
+
+        await processOperation({
+          ctx,
+          payer: admin,
+          operation,
+          mode: globals.mode,
+          options: processorOptions,
+        });
+      }
+    );
+
+  program
+    .command("vault:remove-adaptor")
+    .summary("deregister an adaptor program from the vault")
+    .description(
+      "Deregister an adaptor program from the vault. Defaults to the Kamino adaptor."
+    )
+    .option(
+      "--admin-keypair <path>",
+      "admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .option(adaptorProgramOption, adaptorProgramHelp)
+    .action(
+      async (options: { adminKeypair?: string; adaptorProgram?: string }) => {
+        const command = "vault:remove-adaptor";
+
+        const { globals, profile, ctx } = await loadCommandContext(program);
+        const vault = requireVaultAddress(profile, { command });
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command,
+        });
+        const adaptorProgram = options.adaptorProgram
+          ? asAddress(options.adaptorProgram, "--adaptor-program")
+          : KAMINO_ADAPTOR_PROGRAM_ID;
+        const processorOptions = resolveProcessorOptions(globals);
+        const admin = await loadRoleSigner("admin", options.adminKeypair);
+
+        const operation = await buildRemoveAdaptorOperation(ctx, {
+          admin,
+          vault,
+          adaptorProgram,
+          lookupTableAddresses,
+        });
+
+        await processOperation({
+          ctx,
+          payer: admin,
+          operation,
+          mode: globals.mode,
+          options: processorOptions,
+        });
+      }
+    );
+
+  program
+    .command("vault:init-direct-withdraw")
+    .summary("register a direct-withdraw strategy on the vault")
+    .description(
+      "Register a direct-withdraw strategy, binding it to an adaptor instruction discriminator. Defaults to the Kamino adaptor and the profile's kvault strategy; the 8-byte discriminator comes from integrations.kamino.directWithdrawDiscriminator unless --instruction-discriminator is provided."
+    )
+    .option(
+      "--admin-keypair <path>",
+      "admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .option(adaptorProgramOption, adaptorProgramHelp)
+    .option(
+      "--strategy <address>",
+      "strategy to bind (default: the profile's Kamino kvault)"
+    )
+    .option(
+      "--instruction-discriminator <bytes>",
+      "8-byte adaptor instruction discriminator, as comma-separated u8 values"
+    )
+    .option(
+      "--allow-user-args",
+      "allow caller-supplied args in the direct-withdraw flow (legacy default: off)"
+    )
+    .action(
+      async (options: {
+        adminKeypair?: string;
+        adaptorProgram?: string;
+        strategy?: string;
+        instructionDiscriminator?: string;
+        allowUserArgs?: boolean;
+      }) => {
+        const command = "vault:init-direct-withdraw";
+
+        const { globals, profile, ctx } = await loadCommandContext(program);
+        const vault = requireVaultAddress(profile, { command });
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command,
+        });
+        const adaptorProgram = options.adaptorProgram
+          ? asAddress(options.adaptorProgram, "--adaptor-program")
+          : KAMINO_ADAPTOR_PROGRAM_ID;
+        const strategy = options.strategy
+          ? asAddress(options.strategy, "--strategy")
+          : requireKaminoKvault(profile, { command });
+        if (options.adaptorProgram && !options.instructionDiscriminator) {
+          throw new CliError(
+            "vault:init-direct-withdraw with --adaptor-program requires --instruction-discriminator"
+          );
+        }
+        const instructionDiscriminator = options.instructionDiscriminator
+          ? parseInstructionDiscriminator(options.instructionDiscriminator)
+          : requireKaminoDirectWithdrawDiscriminator(profile, { command });
+        const processorOptions = resolveProcessorOptions(globals);
+        const admin = await loadRoleSigner("admin", options.adminKeypair);
+
+        const operation = await buildInitDirectWithdrawStrategyOperation(ctx, {
+          admin,
+          vault,
+          strategy,
+          adaptorProgram,
+          instructionDiscriminator,
+          allowUserArgs: Boolean(options.allowUserArgs),
+          lookupTableAddresses,
+        });
+
+        await processOperation({
+          ctx,
+          payer: admin,
+          operation,
+          mode: globals.mode,
+          options: processorOptions,
+        });
+      }
+    );
+}
+
 /** Shared vault operations (`vault:*`). */
 export function registerVaultCommands(program: Command): void {
   registerAdminVaultCommands(program);
   registerUserVaultCommands(program);
   registerVaultQueryCommands(program);
+  registerAdaptorAdminCommands(program);
 }

@@ -14,6 +14,7 @@ import {
   requireLookupTableAddress,
   resolveLookupTableAddresses,
   requireKaminoIntegration,
+  requireKaminoDirectWithdrawDiscriminator,
   requireSpotIntegration,
   requireTrustfulIntegration,
   type ScriptProfile,
@@ -266,6 +267,54 @@ test("requireKaminoIntegration validates each field", () => {
     reserve: WSOL,
     kvault: USDC,
   });
+});
+
+test("ScriptProfileSchema treats an empty directWithdrawDiscriminator as absent", () => {
+  const result = ScriptProfileSchema.safeParse({
+    name: "ok",
+    cluster: "devnet",
+    vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
+    integrations: { kamino: { kvaultAddress: USDC, directWithdrawDiscriminator: [] } },
+  });
+  assert.equal(result.success, true);
+  if (!result.success) return;
+  assert.equal(
+    result.data.integrations?.kamino?.directWithdrawDiscriminator,
+    undefined
+  );
+});
+
+test("ScriptProfileSchema rejects a directWithdrawDiscriminator that is not 8 bytes", () => {
+  const result = ScriptProfileSchema.safeParse({
+    name: "ok",
+    cluster: "devnet",
+    vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
+    integrations: { kamino: { directWithdrawDiscriminator: [1, 2, 3] } },
+  });
+  assert.equal(result.success, false);
+});
+
+test("requireKaminoDirectWithdrawDiscriminator validates presence and returns the bytes", () => {
+  assert.throws(
+    () => requireKaminoDirectWithdrawDiscriminator(baseProfile()),
+    /integrations\.kamino/
+  );
+
+  const missingField = baseProfile({
+    integrations: { kamino: { kvaultAddress: USDC } },
+  });
+  assert.throws(
+    () => requireKaminoDirectWithdrawDiscriminator(missingField),
+    /integrations\.kamino\.directWithdrawDiscriminator/
+  );
+
+  const bytes = [135, 7, 237, 120, 149, 94, 95, 7];
+  const full = baseProfile({
+    integrations: {
+      kamino: { kvaultAddress: USDC, directWithdrawDiscriminator: bytes },
+    },
+  });
+  assert.deepEqual(requireKaminoDirectWithdrawDiscriminator(full), bytes);
 });
 
 test("requireSpotIntegration validates each field", () => {

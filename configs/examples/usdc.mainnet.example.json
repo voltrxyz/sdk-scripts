@@ -12,7 +12,8 @@
   "integrations": {
     "kamino": {
       "reserveAddress": "",
-      "kvaultAddress": ""
+      "kvaultAddress": "",
+      "directWithdrawDiscriminator": []
     },
     "spot": {
       "foreignMintAddress": "",

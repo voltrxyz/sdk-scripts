@@ -4,6 +4,10 @@ export {
   type Address,
   type KeyPairSigner,
 } from "@solana/kit";
+// Shared vault PDA derivation. Re-exported so callers (e.g. the CLI, when it
+// needs the vault-strategy authority as a swap signer) derive this vault
+// primitive through core rather than depending on `@voltr/vault-sdk` directly.
+export { findVaultStrategyAuthPda } from "@voltr/vault-sdk";
 export * from "./types.js";
 export * from "./profile.js";
 export * from "./env.js";

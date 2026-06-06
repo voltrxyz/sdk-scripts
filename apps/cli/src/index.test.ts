@@ -145,9 +145,59 @@ test("--help lists the full vault command surface", async () => {
     "vault:instant-withdraw",
     "vault:query:position",
     "vault:query:strategy-positions",
+    "vault:add-adaptor",
+    "vault:remove-adaptor",
+    "vault:init-direct-withdraw",
   ]) {
     assert.ok(text.includes(cmd), `--help should list ${cmd}`);
   }
+});
+
+test("--help lists the full Kamino command surface and claim flags", async () => {
+  const { program, output } = harness();
+  await assert.rejects(() => parse(program, ["--help"]));
+  const rootHelp = output();
+  for (const cmd of [
+    "kamino:market:init",
+    "kamino:market:deposit",
+    "kamino:market:withdraw",
+    "kamino:market:claim-reward",
+    "kamino:market:claim-reward-with-index",
+    "kamino:kvault:init",
+    "kamino:kvault:deposit",
+    "kamino:kvault:withdraw",
+    "kamino:kvault:claim-rewards",
+    "kamino:kvault:claim-rewards-with-index",
+    "kamino:user:direct-withdraw",
+    "kamino:user:request-and-direct-withdraw",
+  ]) {
+    assert.ok(rootHelp.includes(cmd), `--help should list ${cmd}`);
+  }
+
+  const claim = harness();
+  await assert.rejects(() =>
+    parse(claim.program, ["kamino:market:claim-reward-with-index", "--help"])
+  );
+  const claimHelp = claim.output();
+  for (const flag of [
+    "--reward-mint",
+    "--farm-state",
+    "--user-state",
+    "--reward-index",
+    "--swap-amount",
+  ]) {
+    assert.ok(claimHelp.includes(flag), `claim help should list ${flag}`);
+  }
+
+  const directWithdraw = harness();
+  await assert.rejects(() =>
+    parse(directWithdraw.program, ["vault:init-direct-withdraw", "--help"])
+  );
+  assert.match(directWithdraw.output(), /--instruction-discriminator/);
+  assert.match(
+    directWithdraw.output(),
+    /integrations\.kamino\.directWithdrawDiscriminator/
+  );
 });
 
 test("vault:init requires --manager, --name, and --max-cap", async () => {
@@ -348,6 +398,78 @@ test("vault:init* reject --mode multisig even when fully specified", async () =>
         /does not support --mode multisig/
       );
     }
+  });
+});
+
+test("vault:init-direct-withdraw requires an explicit discriminator for adaptor overrides", async () => {
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: {
+      assetMintAddress: USDC,
+      assetTokenProgram: TOKEN_PROGRAM,
+      vaultAddress: SYSTEM,
+    },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "vault:init-direct-withdraw",
+          "--adaptor-program",
+          USDC,
+          "--strategy",
+          SYSTEM,
+        ]),
+      /requires --instruction-discriminator/
+    );
+  });
+});
+
+test("vault:init-direct-withdraw accepts explicit discriminator without Kamino profile fields", async () => {
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: {
+      assetMintAddress: USDC,
+      assetTokenProgram: TOKEN_PROGRAM,
+      vaultAddress: SYSTEM,
+    },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "vault:init-direct-withdraw",
+          "--admin-keypair",
+          "/nonexistent/admin.json",
+          "--adaptor-program",
+          USDC,
+          "--strategy",
+          SYSTEM,
+          "--instruction-discriminator",
+          "1,2,3,4,5,6,7,8",
+        ]),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.doesNotMatch(
+          error.message,
+          /integrations\.kamino\.directWithdrawDiscriminator/
+        );
+        assert.match(error.message, /keypair|ENOENT|no such file/i);
+        return true;
+      }
+    );
   });
 });
 
