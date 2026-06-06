@@ -85,7 +85,7 @@ The two legacy admin scripts are wired under `vault:*` because the builders are
 generic base-vault operations from VOL-224, parameterized by the adaptor program
 and direct-withdraw strategy. The CLI defaults those commands to the Kamino
 adaptor and the profile's Kamino kvault. If `--adaptor-program` is overridden,
-the operator must also pass `--instruction-discriminator` so a non-Kamino
+the operator must also pass `--discriminator` so a non-Kamino
 adaptor is not accidentally bound to
 `integrations.kamino.directWithdrawDiscriminator`.
 

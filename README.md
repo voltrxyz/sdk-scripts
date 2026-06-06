@@ -115,7 +115,7 @@ pnpm cli -- --profile configs/my-vault.json \
 
 # trustful: borrow against a curve strategy
 pnpm cli -- --profile configs/my-vault.json \
-  trustful:curve:borrow --amount 1000000
+  trustful:curve:borrow --amount 1000000 --borrow-rate-bps 50
 
 # check: validate a profile and print a configuration summary (no network)
 pnpm cli -- --profile configs/my-vault.json check
@@ -149,7 +149,7 @@ below are the per-call values.
 | `vault:query:strategy-positions` | none | — |
 | `vault:add-adaptor` | admin | optional `--adaptor-program <address>` |
 | `vault:remove-adaptor` | admin | optional `--adaptor-program <address>` |
-| `vault:init-direct-withdraw` | admin | optional `--adaptor-program <address>`, `--strategy <address>`, `--instruction-discriminator <bytes>`, `--allow-user-args` |
+| `vault:init-direct-withdraw` | admin | optional `--adaptor-program <address>`, `--strategy <address>`, `--discriminator <8 bytes>`, `--allow-user-args` |
 
 Role keypairs come from `--<role>-keypair` or the `<ROLE>_KEYPAIR` env var (see
 [Keypairs](#keypairs)). `vault:init` does **not** need the manager's keypair —
@@ -173,8 +173,10 @@ direct-withdraw strategy is `integrations.kamino.kvaultAddress`, and the
 instruction discriminator comes from
 `integrations.kamino.directWithdrawDiscriminator`. When overriding
 `--adaptor-program`, pass that adaptor's 8-byte discriminator explicitly with
-`--instruction-discriminator`, for example `--instruction-discriminator
-1,2,3,4,5,6,7,8`.
+`--discriminator`, for example `--discriminator 1,2,3,4,5,6,7,8`. For the Spot
+Jupiter Earn strategy use [`spot:earn:init-direct-withdraw`](#spot-commands),
+which derives the strategy and adaptor program for you. See
+[Trustful commands](#trustful-commands) for the Trustful adaptor program id.
 
 #### Vault lifecycle flow
 
@@ -283,6 +285,128 @@ RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
   --swap-amount <RAW_REWARD_AMOUNT>
 ```
 
+### Spot commands
+
+Spot covers two strategy domains under one adaptor: `spot:spot:*` (swap the vault
+asset into/out of a foreign asset via Jupiter) and `spot:earn:*` (Jupiter Earn
+lending). All are transaction commands except `spot:query:strategy-positions`,
+which is read-only. Profile-sourced values come from `--profile`; the flags below
+are the per-call values.
+
+| Command | Role | Per-call flags |
+| --- | --- | --- |
+| `spot:spot:init` | manager | — |
+| `spot:spot:buy` | manager | `--amount <raw>`, `--slippage-bps <bps>` (+ optional `--jupiter-max-accounts`, `--minimum-threshold-amount-out`) |
+| `spot:spot:sell` | manager | `--amount <raw>`, `--slippage-bps <bps>` (+ optional `--jupiter-max-accounts`, `--minimum-threshold-amount-out`) |
+| `spot:earn:init` | manager | — |
+| `spot:earn:deposit` | manager | `--amount <raw>` |
+| `spot:earn:withdraw` | manager | `--amount <raw>` |
+| `spot:earn:extend-lut` | manager | — (extends `vault.lookupTableAddress`) |
+| `spot:earn:init-direct-withdraw` | admin | — (reads `integrations.spot.directWithdrawDiscriminator`) |
+| `spot:query:strategy-positions` | none | — |
+
+The `spot:spot:*` commands read the foreign mint, foreign token program, and both
+Pyth oracle addresses from `integrations.spot.*`; `spot:spot:buy` / `spot:spot:sell`
+build their swap through the Jupiter API. The `spot:earn:*` deposit/withdraw
+commands act on the vault asset only. `spot:earn:init` initializes the Jupiter Earn
+strategy; run `spot:earn:extend-lut` afterwards if you use a lookup table (it ports
+the legacy earn-init flow's optional second transaction). `spot:earn:init-direct-withdraw`
+registers Earn as a vault direct-withdraw strategy and needs the 8-byte
+`integrations.spot.directWithdrawDiscriminator` (a per-deployment value).
+`spot:query:strategy-positions` augments each Voltr strategy's position value with
+the strategy's current raw foreign-token balance where available.
+
+```bash
+# Spot: initialize the swap strategy, then buy / sell the foreign asset
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  spot:spot:init
+
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  spot:spot:buy --amount 1000000 --slippage-bps 50
+
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  spot:spot:sell --amount 1000000 --slippage-bps 50 --jupiter-max-accounts 16
+
+# Jupiter Earn: initialize, then deposit / withdraw the vault asset
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  spot:earn:init
+
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  spot:earn:deposit --amount 1000000
+
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  spot:earn:withdraw --amount 1000000
+
+# Spot: read the vault's per-strategy positions (read-only, no keypair)
+RPC_URL="https://your-rpc" pnpm cli -- \
+  --profile configs/my-vault.json \
+  spot:query:strategy-positions
+```
+
+Before the manager can route through Spot, the admin must register the adaptor
+once with `vault:add-adaptor --adaptor-program <SPOT_ADAPTOR_PROGRAM_ID>` (see the
+[Vault commands](#vault-commands) table). The full old-script → command map is in
+[docs/spot-migration.md](./docs/spot-migration.md).
+
+### Trustful commands
+
+The `trustful:*` commands operate the Trustful adaptor's two strategy families:
+an operator-named **arbitrary** strategy and a per-vault singleton **curve**
+strategy. All are manager-signed transaction commands (they honor `--mode`).
+Profile-sourced values (vault address, asset mint/token program, lookup table,
+and — for the arbitrary commands — `integrations.trustful.strategySeedString`)
+come from `--profile`; the flags below are the per-call values.
+
+| Command | Role | Per-call flags |
+| --- | --- | --- |
+| `trustful:arbitrary:init` | manager | — |
+| `trustful:arbitrary:deposit` | manager | `--amount <raw>`, `--destination <address>`, `--position-value-after <raw>` |
+| `trustful:arbitrary:withdraw` | manager | `--amount <raw>`, `--position-value-after <raw>` |
+| `trustful:curve:init` | manager | — |
+| `trustful:curve:borrow` | manager | `--amount <raw>`, `--borrow-rate-bps <bps>` |
+| `trustful:curve:repay` | manager | `--amount <raw>`, `--borrow-rate-bps <bps>` |
+| `trustful:curve:remove` | manager | — |
+
+The arbitrary strategy is named by `integrations.trustful.strategySeedString`;
+the curve strategy is a singleton seeded by the adaptor's fixed `"curve"`
+constant, so the curve commands take no seed flag. `trustful:arbitrary:deposit`
+prints the **withdrawal-holding account** you must return strategy assets to
+before running `trustful:arbitrary:withdraw` (preserved from the old deposit
+script's output).
+
+Registering the Trustful adaptor on a vault is a one-time admin step using the
+generic `vault:add-adaptor` command with the Trustful adaptor program id
+(`3pnpK9nrs1R65eMV1wqCXkDkhSgN18xb1G5pgYPwoZjJ`):
+
+```bash
+# admin: allow the Trustful adaptor on the vault (one-time, before init)
+RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:add-adaptor --adaptor-program 3pnpK9nrs1R65eMV1wqCXkDkhSgN18xb1G5pgYPwoZjJ
+
+# arbitrary: deposit vault assets into the named strategy (manager signs). The
+# command prints the holding account to return assets to before withdrawing.
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  trustful:arbitrary:deposit --amount 1000000 \
+  --destination <DESTINATION_TOKEN_ACCOUNT> --position-value-after 1000000
+
+# curve: borrow against the curve strategy (manager signs)
+RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  trustful:curve:borrow --amount 1000000 --borrow-rate-bps 50
+```
+
+Each old `voltr-trustful-scripts` script maps to one new command — see
+[packages/trustful/MIGRATION.md](./packages/trustful/MIGRATION.md) for the full
+script → builder → command map.
+
 ### Global options
 
 | Option | Purpose |
@@ -336,7 +460,7 @@ Profile shape:
   },
   "integrations": {
     "kamino":   { "reserveAddress": "...", "kvaultAddress": "...", "directWithdrawDiscriminator": [/* 8 bytes */] },
-    "spot":     { "foreignMintAddress": "...", "foreignTokenProgram": "...", "assetOracleAddress": "...", "foreignOracleAddress": "..." },
+    "spot":     { "foreignMintAddress": "...", "foreignTokenProgram": "...", "assetOracleAddress": "...", "foreignOracleAddress": "...", "directWithdrawDiscriminator": [/* 8 bytes; only for spot:earn:init-direct-withdraw */] },
     "trustful": { "strategySeedString": "..." }
   }
 }

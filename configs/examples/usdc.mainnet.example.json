@@ -19,7 +19,8 @@
       "foreignMintAddress": "",
       "foreignTokenProgram": "",
       "assetOracleAddress": "",
-      "foreignOracleAddress": ""
+      "foreignOracleAddress": "",
+      "directWithdrawDiscriminator": []
     },
     "trustful": {
       "strategySeedString": ""

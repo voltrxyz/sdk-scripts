@@ -16,6 +16,7 @@ import {
   requireKaminoIntegration,
   requireKaminoDirectWithdrawDiscriminator,
   requireSpotIntegration,
+  requireSpotDirectWithdrawDiscriminator,
   requireTrustfulIntegration,
   type ScriptProfile,
 } from "./profile.js";
@@ -339,6 +340,50 @@ test("requireSpotIntegration validates each field", () => {
     assetOracle: SYSTEM,
     foreignOracle: COMPUTE_BUDGET,
   });
+});
+
+test("requireSpotDirectWithdrawDiscriminator returns the bytes when set", () => {
+  // Missing section, and an empty-array placeholder, both throw and name the field.
+  assert.throws(
+    () => requireSpotDirectWithdrawDiscriminator(baseProfile()),
+    /integrations\.spot/
+  );
+  const placeholder = baseProfile({
+    integrations: { spot: { directWithdrawDiscriminator: [] } },
+  });
+  assert.throws(
+    () => requireSpotDirectWithdrawDiscriminator(placeholder),
+    /integrations\.spot\.directWithdrawDiscriminator/
+  );
+
+  const discriminator = [232, 204, 244, 40, 201, 192, 7, 194];
+  const full = baseProfile({
+    integrations: { spot: { directWithdrawDiscriminator: discriminator } },
+  });
+  assert.deepEqual(
+    requireSpotDirectWithdrawDiscriminator(full),
+    discriminator
+  );
+});
+
+test("SpotIntegrationSchema rejects a discriminator that is not 8 bytes", () => {
+  const wrongLength = ScriptProfileSchema.safeParse({
+    name: "ok",
+    cluster: "devnet",
+    vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
+    integrations: { spot: { directWithdrawDiscriminator: [1, 2, 3] } },
+  });
+  assert.equal(wrongLength.success, false);
+
+  const outOfRange = ScriptProfileSchema.safeParse({
+    name: "ok",
+    cluster: "devnet",
+    vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
+    integrations: {
+      spot: { directWithdrawDiscriminator: [0, 0, 0, 0, 0, 0, 0, 256] },
+    },
+  });
+  assert.equal(outOfRange.success, false);
 });
 
 test("requireTrustfulIntegration returns the strategy seed", () => {

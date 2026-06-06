@@ -143,11 +143,11 @@ test("--help lists the full vault command surface", async () => {
     "vault:cancel-request-withdraw",
     "vault:withdraw",
     "vault:instant-withdraw",
-    "vault:query:position",
-    "vault:query:strategy-positions",
     "vault:add-adaptor",
     "vault:remove-adaptor",
     "vault:init-direct-withdraw",
+    "vault:query:position",
+    "vault:query:strategy-positions",
   ]) {
     assert.ok(text.includes(cmd), `--help should list ${cmd}`);
   }
@@ -193,11 +193,30 @@ test("--help lists the full Kamino command surface and claim flags", async () =>
   await assert.rejects(() =>
     parse(directWithdraw.program, ["vault:init-direct-withdraw", "--help"])
   );
-  assert.match(directWithdraw.output(), /--instruction-discriminator/);
+  assert.match(directWithdraw.output(), /--discriminator/);
   assert.match(
     directWithdraw.output(),
     /integrations\.kamino\.directWithdrawDiscriminator/
   );
+});
+
+test("--help lists the full spot command surface", async () => {
+  const { program, output } = harness();
+  await assert.rejects(() => parse(program, ["--help"]));
+  const text = output();
+  for (const cmd of [
+    "spot:spot:init",
+    "spot:spot:buy",
+    "spot:spot:sell",
+    "spot:earn:init",
+    "spot:earn:deposit",
+    "spot:earn:withdraw",
+    "spot:earn:extend-lut",
+    "spot:earn:init-direct-withdraw",
+    "spot:query:strategy-positions",
+  ]) {
+    assert.ok(text.includes(cmd), `--help should list ${cmd}`);
+  }
 });
 
 test("vault:init requires --manager, --name, and --max-cap", async () => {
@@ -426,7 +445,98 @@ test("vault:init-direct-withdraw requires an explicit discriminator for adaptor 
           "--strategy",
           SYSTEM,
         ]),
-      /requires --instruction-discriminator/
+      /requires --discriminator/
+    );
+  });
+});
+
+test("spot:earn:deposit requires --amount", async () => {
+  const { program } = harness();
+  await assert.rejects(() =>
+    parse(program, ["--profile", "p.json", "spot:earn:deposit"])
+  );
+});
+
+test("spot:spot:buy requires --slippage-bps", async () => {
+  const { program } = harness();
+  await assert.rejects(() =>
+    parse(program, [
+      "--profile",
+      "p.json",
+      "spot:spot:buy",
+      "--amount",
+      "1000000",
+    ])
+  );
+});
+
+test("--help lists the full trustful + adaptor-admin command surface", async () => {
+  const { program, output } = harness();
+  await assert.rejects(() => parse(program, ["--help"]));
+  const text = output();
+  for (const cmd of [
+    "vault:add-adaptor",
+    "vault:remove-adaptor",
+    "trustful:arbitrary:init",
+    "trustful:arbitrary:deposit",
+    "trustful:arbitrary:withdraw",
+    "trustful:curve:init",
+    "trustful:curve:borrow",
+    "trustful:curve:repay",
+    "trustful:curve:remove",
+  ]) {
+    assert.ok(text.includes(cmd), `--help should list ${cmd}`);
+  }
+});
+
+test("trustful:arbitrary:withdraw requires --amount and --position-value-after", async () => {
+  const incompleteFlagSets = [
+    ["--position-value-after", "1"], // missing --amount
+    ["--amount", "1"], // missing --position-value-after
+  ];
+  for (const flags of incompleteFlagSets) {
+    const { program } = harness();
+    await assert.rejects(() =>
+      parse(program, [
+        "--profile",
+        "p.json",
+        "trustful:arbitrary:withdraw",
+        ...flags,
+      ])
+    );
+  }
+});
+
+test("vault:init-direct-withdraw rejects a malformed --discriminator", async () => {
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: {
+      assetMintAddress: USDC,
+      assetTokenProgram: TOKEN_PROGRAM,
+      vaultAddress: SYSTEM,
+    },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "vault:init-direct-withdraw",
+          "--admin-keypair",
+          "/nonexistent/admin.json",
+          "--strategy",
+          USDC,
+          "--adaptor-program",
+          USDC,
+          "--discriminator",
+          "1,2,3", // not 8 bytes
+        ]),
+      /--discriminator must be 8/
     );
   });
 });
@@ -457,7 +567,7 @@ test("vault:init-direct-withdraw accepts explicit discriminator without Kamino p
           USDC,
           "--strategy",
           SYSTEM,
-          "--instruction-discriminator",
+          "--discriminator",
           "1,2,3,4,5,6,7,8",
         ]),
       (error: unknown) => {
@@ -469,6 +579,101 @@ test("vault:init-direct-withdraw accepts explicit discriminator without Kamino p
         assert.match(error.message, /keypair|ENOENT|no such file/i);
         return true;
       }
+    );
+  });
+});
+
+test("spot:earn:init-direct-withdraw surfaces a missing discriminator profile field", async () => {
+  // Valid profile with a vault and a spot section, but no directWithdrawDiscriminator
+  // -> requireSpotDirectWithdrawDiscriminator should name the missing field before
+  // createScriptContext dials anything or the keypair file is touched.
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: {
+      assetMintAddress: USDC,
+      assetTokenProgram: TOKEN_PROGRAM,
+      vaultAddress: SYSTEM,
+    },
+    integrations: { spot: {} },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "--mode",
+          "print",
+          "spot:earn:init-direct-withdraw",
+          "--admin-keypair",
+          "/nonexistent/admin.json",
+        ]),
+      /directWithdrawDiscriminator/
+    );
+  });
+});
+
+test("trustful:arbitrary:init surfaces a missing trustful section before any network/keypair I/O", async () => {
+  // vaultAddress is set, but integrations.trustful is absent -> the strategy
+  // seed accessor should throw before createScriptContext dials or the keypair
+  // file is touched.
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: {
+      assetMintAddress: USDC,
+      assetTokenProgram: TOKEN_PROGRAM,
+      vaultAddress: SYSTEM,
+    },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "--mode",
+          "print",
+          "trustful:arbitrary:init",
+          "--manager-keypair",
+          "/nonexistent/manager.json",
+        ]),
+      /integrations\.trustful/
+    );
+  });
+});
+
+test("trustful:curve:remove surfaces a missing profile field before any network/keypair I/O", async () => {
+  // No vaultAddress -> requireVaultAddress should throw before the curve seed is
+  // derived, the RPC is dialed, or the keypair file is read.
+  const profile = JSON.stringify({
+    name: "cli-test",
+    cluster: "devnet",
+    rpcUrl: "http://localhost:8899",
+    vault: { assetMintAddress: USDC, assetTokenProgram: TOKEN_PROGRAM },
+  });
+
+  await withTempProfile(profile, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "--mode",
+          "print",
+          "trustful:curve:remove",
+          "--manager-keypair",
+          "/nonexistent/manager.json",
+        ]),
+      /vault\.vaultAddress/
     );
   });
 });

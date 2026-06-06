@@ -69,7 +69,7 @@ command names and the inputs each needs, for the CLI ticket to wire.
 | --- | --- | --- | --- |
 | `vault:add-adaptor` | `--adaptor-program <addr>` (or adapter package constant) | — | — |
 | `vault:remove-adaptor` | `--adaptor-program <addr>` | — | — |
-| `vault:init-direct-withdraw` | `--adaptor-program <addr>` | `--strategy <addr>` (Kamino: kvault) | Kamino profile default, or `--instruction-discriminator <bytes>` when overriding adaptor |
+| `vault:init-direct-withdraw` | `--adaptor-program <addr>` | `--strategy <addr>` (Kamino: kvault) | Kamino profile default, or `--discriminator <bytes>` when overriding adaptor |
 | `spot:earn:init-direct-withdraw` | Spot `ADAPTOR_PROGRAM_ID` (in the wrapper) | derived `lending` PDA (in the wrapper) | profile/flag |
 
 In all cases the **admin** signer comes from `--admin-keypair` / `ADMIN_KEYPAIR`
