@@ -36,6 +36,13 @@ docs/
 
 ## Documentation
 
+**Operators start here:**
+
+- **[docs/parity-matrix.md](./docs/parity-matrix.md)** — every legacy script in the four old repos mapped to its new builder + CLI command, with migration status and behavior-difference notes. The consolidated old-to-new index.
+- **[docs/migration-recipes.md](./docs/migration-recipes.md)** — the operator playbook: profile creation, keypair/RPC handling, transaction modes (`print` / `simulate` / `multisig` / `execute`), and runnable recipes for every common flow plus a one-example-per-command reference.
+
+**Contributors / reference:**
+
 - **[docs/architecture.md](./docs/architecture.md)** — read this first. Defines package responsibilities, the operation-builder contract, command naming, query vs transaction commands, web3.js isolation, where operational values live, and the step-by-step recipe for adding a new operation.
 - **[docs/migration-plan.md](./docs/migration-plan.md)** — which legacy scripts to port, in what order.
 - **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, and how to add adapter builder tests.
