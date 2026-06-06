@@ -11,9 +11,9 @@ import {
   type ScriptContext,
 } from "@voltr/scripts-core";
 import {
-  buildSpotBuyOperation,
-  buildSpotSellOperation,
-  type SpotSwapArgs,
+  buildSpotSpotBuyOperation,
+  buildSpotSpotSellOperation,
+  type SpotSpotSwapArgs,
 } from "@voltr/scripts-spot";
 import { CliError } from "../lib/errors.js";
 import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
@@ -21,7 +21,7 @@ import { loadRoleSigner } from "../lib/signers.js";
 
 type SpotBuilder = (
   ctx: ScriptContext,
-  args: SpotSwapArgs
+  args: SpotSpotSwapArgs
 ) => Promise<BuiltOperation>;
 
 function parseSlippageBps(value: string): number {
@@ -137,6 +137,6 @@ function registerSpotSwap(
 
 /** Spot / Earn strategies (`spot:*`). */
 export function registerSpotCommands(program: Command): void {
-  registerSpotSwap(program, "spot:spot:buy", buildSpotBuyOperation);
-  registerSpotSwap(program, "spot:spot:sell", buildSpotSellOperation);
+  registerSpotSwap(program, "spot:spot:buy", buildSpotSpotBuyOperation);
+  registerSpotSwap(program, "spot:spot:sell", buildSpotSpotSellOperation);
 }

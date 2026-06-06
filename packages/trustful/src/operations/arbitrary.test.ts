@@ -5,7 +5,7 @@ import {
   assertBuiltOperationShape,
   createFakeScriptContext,
 } from "@voltr/scripts-core/testing";
-import { buildTrustfulDepositArbitraryOperation } from "./arbitrary.js";
+import { buildTrustfulArbitraryDepositOperation } from "./arbitrary.js";
 
 const USDC = address("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 const TOKEN_PROGRAM = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
@@ -16,7 +16,7 @@ test("trustful:arbitrary:deposit builds the expected operation offline", async (
   const ctx = createFakeScriptContext();
   const manager = await generateKeyPairSigner();
 
-  const operation = await buildTrustfulDepositArbitraryOperation(ctx, {
+  const operation = await buildTrustfulArbitraryDepositOperation(ctx, {
     manager,
     vault: VAULT,
     assetMint: USDC,

@@ -3,7 +3,7 @@ import { address, type Address } from "@solana/kit";
 // The Voltr Spot/Jupiter-Earn adaptor program. Spot strategies and Jupiter Earn
 // (lending) strategies are both driven through this single adaptor; the per-flow
 // behavior is selected by the instruction discriminator passed to the vault SDK.
-export const ADAPTOR_PROGRAM_ID: Address = address(
+export const SPOT_ADAPTOR_PROGRAM_ID: Address = address(
   "EW35URAx3LiM13fFK3QxAXfGemHso9HWPixrv7YDY4AM"
 );
 
@@ -19,7 +19,7 @@ export const JUPITER_REWARDS_RATE_PROGRAM_ID: Address = address(
 );
 
 // PDA seed prefixes. String seeds are UTF-8 encoded by `getProgramDerivedAddress`.
-export const SEEDS = {
+export const SPOT_SEEDS = {
   // Spot adaptor
   ORACLE_INIT_RECEIPT: "oracle_init_receipt",
   // Jupiter Lend
@@ -36,15 +36,20 @@ export const SEEDS = {
   LENDING_REWARDS_RATE_MODEL: "lending_rewards_rate_model",
 } as const;
 
-// Adaptor instruction discriminators threaded through the vault SDK's
-// `initialize`/`deposit`/`withdraw` strategy instructions as `instructionDiscriminator`.
-export const DISCRIMINATOR = {
-  INITIALIZE_SPOT: new Uint8Array([206, 194, 174, 21, 64, 192, 115, 9]),
-  SWAP_SPOT: new Uint8Array([198, 133, 229, 32, 233, 2, 193, 212]),
-  INITIALIZE_JUPITER_EARN: new Uint8Array([96, 41, 228, 66, 7, 63, 88, 208]),
-  DEPOSIT_JUPITER_EARN: new Uint8Array([56, 2, 200, 235, 238, 139, 231, 190]),
-  WITHDRAW_JUPITER_EARN: new Uint8Array([232, 204, 244, 40, 201, 192, 7, 194]),
-} as const;
+/**
+ * Adaptor instruction discriminators threaded through the vault SDK's
+ * `initialize`/`deposit`/`withdraw` strategy instructions as
+ * `instructionDiscriminator`. Stored as plain number arrays (matching the other
+ * adapter packages); wrap with `new Uint8Array(...)` at the call site so each
+ * instruction gets its own copy.
+ */
+export const SPOT_DISCRIMINATOR = {
+  INITIALIZE_SPOT: [206, 194, 174, 21, 64, 192, 115, 9],
+  SWAP_SPOT: [198, 133, 229, 32, 233, 2, 193, 212],
+  INITIALIZE_JUPITER_EARN: [96, 41, 228, 66, 7, 63, 88, 208],
+  DEPOSIT_JUPITER_EARN: [56, 2, 200, 235, 238, 139, 231, 190],
+  WITHDRAW_JUPITER_EARN: [232, 204, 244, 40, 201, 192, 7, 194],
+} as const satisfies Record<string, readonly number[]>;
 
 // Default Jupiter swap API base. The legacy scripts used the lite (keyless) host.
 export const JUPITER_SWAP_API_BASE = "https://lite-api.jup.ag/swap/v1";

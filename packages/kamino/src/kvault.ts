@@ -1,8 +1,7 @@
 import { VaultState, Reserve } from "@kamino-finance/klend-sdk";
 import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import type { AccountMeta, Address } from "@solana/kit";
-import type { SolanaRpc } from "@voltr/scripts-core";
-import { readonlyAccount, writableAccount } from "./account-meta.js";
+import { readonlyAccount, writableAccount, type SolanaRpc } from "@voltr/scripts-core";
 import {
   asKitAddress,
   DEFAULT_ADDRESS,

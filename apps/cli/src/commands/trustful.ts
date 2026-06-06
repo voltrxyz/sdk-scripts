@@ -12,17 +12,17 @@ import {
   type ScriptContext,
 } from "@voltr/scripts-core";
 import {
-  buildTrustfulBorrowCurveOperation,
-  buildTrustfulDepositArbitraryOperation,
-  buildTrustfulRepayCurveOperation,
-  type TrustfulBorrowCurveArgs,
-  type TrustfulRepayCurveArgs,
+  buildTrustfulCurveBorrowOperation,
+  buildTrustfulArbitraryDepositOperation,
+  buildTrustfulCurveRepayOperation,
+  type TrustfulCurveBorrowArgs,
+  type TrustfulCurveRepayArgs,
 } from "@voltr/scripts-trustful";
 import { CliError } from "../lib/errors.js";
 import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
 import { loadRoleSigner } from "../lib/signers.js";
 
-type TrustfulCurveCommandArgs = TrustfulBorrowCurveArgs & TrustfulRepayCurveArgs;
+type TrustfulCurveCommandArgs = TrustfulCurveBorrowArgs & TrustfulCurveRepayArgs;
 
 type CurveBuilder = (
   ctx: ScriptContext,
@@ -147,7 +147,7 @@ export function registerTrustfulCommands(program: Command): void {
         const processorOptions = resolveProcessorOptions(globals);
         const manager = await loadRoleSigner("manager", options.managerKeypair);
 
-        const operation = await buildTrustfulDepositArbitraryOperation(ctx, {
+        const operation = await buildTrustfulArbitraryDepositOperation(ctx, {
           manager,
           vault,
           assetMint,
@@ -172,11 +172,11 @@ export function registerTrustfulCommands(program: Command): void {
   registerCurveCommand(
     program,
     "trustful:curve:borrow",
-    buildTrustfulBorrowCurveOperation
+    buildTrustfulCurveBorrowOperation
   );
   registerCurveCommand(
     program,
     "trustful:curve:repay",
-    buildTrustfulRepayCurveOperation
+    buildTrustfulCurveRepayOperation
   );
 }

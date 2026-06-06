@@ -5,7 +5,7 @@ import {
   assertBuiltOperationShape,
   createFakeScriptContext,
 } from "@voltr/scripts-core/testing";
-import { ADAPTOR_PROGRAM_ID } from "../constants.js";
+import { SPOT_ADAPTOR_PROGRAM_ID } from "../constants.js";
 import { findJupiterLendingPda } from "../pda.js";
 import { buildSpotEarnInitDirectWithdrawOperation } from "./earn.js";
 
@@ -41,7 +41,7 @@ test("spot:earn:init-direct-withdraw targets the derived Jupiter lending strateg
   );
   assert.ok(accounts.includes(lending), "expected the derived lending strategy");
   assert.ok(
-    accounts.includes(ADAPTOR_PROGRAM_ID),
+    accounts.includes(SPOT_ADAPTOR_PROGRAM_ID),
     "expected the Spot adaptor program"
   );
 });

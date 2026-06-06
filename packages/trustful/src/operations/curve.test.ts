@@ -5,19 +5,19 @@ import {
   createFakeScriptContext,
 } from "@voltr/scripts-core/testing";
 import type {
-  TrustfulBorrowCurveArgs,
-  TrustfulRepayCurveArgs,
+  TrustfulCurveBorrowArgs,
+  TrustfulCurveRepayArgs,
 } from "./curve.js";
 import {
-  buildTrustfulBorrowCurveOperation,
-  buildTrustfulRepayCurveOperation,
+  buildTrustfulCurveBorrowOperation,
+  buildTrustfulCurveRepayOperation,
 } from "./curve.js";
 
 const USDC = address("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 const TOKEN_PROGRAM = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const VAULT = address("11111111111111111111111111111111");
 
-function borrowArgs(manager: KeyPairSigner): TrustfulBorrowCurveArgs {
+function borrowArgs(manager: KeyPairSigner): TrustfulCurveBorrowArgs {
   return {
     manager,
     vault: VAULT,
@@ -28,7 +28,7 @@ function borrowArgs(manager: KeyPairSigner): TrustfulBorrowCurveArgs {
   };
 }
 
-function repayArgs(manager: KeyPairSigner): TrustfulRepayCurveArgs {
+function repayArgs(manager: KeyPairSigner): TrustfulCurveRepayArgs {
   return {
     manager,
     vault: VAULT,
@@ -42,7 +42,7 @@ function repayArgs(manager: KeyPairSigner): TrustfulRepayCurveArgs {
 test("trustful:curve:borrow builds the expected operation offline", async () => {
   const ctx = createFakeScriptContext();
   const manager = await generateKeyPairSigner();
-  const operation = await buildTrustfulBorrowCurveOperation(
+  const operation = await buildTrustfulCurveBorrowOperation(
     ctx,
     borrowArgs(manager)
   );
@@ -56,7 +56,7 @@ test("trustful:curve:borrow builds the expected operation offline", async () => 
 test("trustful:curve:repay builds the expected operation offline", async () => {
   const ctx = createFakeScriptContext();
   const manager = await generateKeyPairSigner();
-  const operation = await buildTrustfulRepayCurveOperation(
+  const operation = await buildTrustfulCurveRepayOperation(
     ctx,
     repayArgs(manager)
   );

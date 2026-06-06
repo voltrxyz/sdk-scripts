@@ -52,10 +52,14 @@ declares its operation-specific *ordering*:
 - `kvault.ts` — `loadKvaultReserves` plus `buildKvaultDepositAccounts` /
   `buildKvaultWithdrawAccounts`, which assemble the kvault remaining-account
   lists shared by deposit, withdraw, and both user direct-withdraw flows.
-- `account-meta.ts` — `readonlyAccount` / `writableAccount` /
-  `withRemainingAccounts` and the `u64`/byte helpers used by claims.
+- account-meta / encoding helpers (`readonlyAccount`, `writableAccount`,
+  `withRemainingAccounts`, `encodeU64Le`) are shared `@voltr/scripts-core`
+  helpers (consolidated in VOL-234), not adapter-local.
 - `swap.ts` — the `KaminoJupiterSwap` payload type and `additionalArgs` builder
   for reward claims.
+
+The operation builders are grouped one module per strategy domain
+(`operations/market.ts`, `operations/kvault.ts`, `operations/user.ts`).
 
 ## klend-sdk used as a decoder only
 

@@ -7,6 +7,8 @@ export {
 export * from "./types.js";
 export * from "./profile.js";
 export * from "./env.js";
+export * from "./account-meta.js";
+export * from "./codec.js";
 export * from "./interop/web3-kit.js";
 export * from "./token/accounts.js";
 export * from "./tx/lut.js";

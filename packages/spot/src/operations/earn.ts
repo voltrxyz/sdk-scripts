@@ -18,17 +18,17 @@ import {
   buildInitDirectWithdrawStrategyOperation,
   collectInstructionAddresses,
   setupTokenAccount,
+  withRemainingAccounts,
   type BuiltOperation,
   type ScriptContext,
 } from "@voltr/scripts-core";
 import {
-  ADAPTOR_PROGRAM_ID,
-  DISCRIMINATOR,
   JUPITER_LEND_PROGRAM_ID,
   JUPITER_LIQUIDITY_PROGRAM_ID,
+  SPOT_ADAPTOR_PROGRAM_ID,
+  SPOT_DISCRIMINATOR,
 } from "../constants.js";
 import { deriveJupiterEarnAccounts, findJupiterLendingPda } from "../pda.js";
-import { appendRemainingAccounts } from "../util.js";
 
 export interface SpotEarnInitArgs {
   /** Manager keypair; also funds the new strategy accounts (payer). */
@@ -39,17 +39,20 @@ export interface SpotEarnInitArgs {
   lookupTableAddresses?: Address[];
 }
 
-export interface SpotEarnAmountArgs {
+export interface SpotEarnDepositArgs {
   manager: KeyPairSigner;
   vault: Address;
   assetMint: Address;
   assetTokenProgram: Address;
-  /** Amount in vault-asset base units to deposit into / withdraw from the Earn strategy. */
+  /** Amount in vault-asset base units to deposit into the Earn strategy. */
   amount: bigint;
   lookupTableAddresses?: Address[];
 }
 
-export interface SpotEarnExtendLookupTableArgs {
+/** Withdraw takes the same shape as deposit (raw vault-asset base units). */
+export type SpotEarnWithdrawArgs = SpotEarnDepositArgs;
+
+export interface SpotEarnExtendLutArgs {
   /** Keypair that pays for and is the authority of the lookup table. */
   manager: KeyPairSigner;
   vault: Address;
@@ -66,7 +69,7 @@ export interface SpotEarnExtendLookupTableArgs {
  *
  * Migrated from `manager-initialize-earn.ts` (first transaction only). The legacy
  * script's optional second transaction — pre-loading the lookup table — is its
- * own operation here: {@link buildSpotEarnExtendLookupTableOperation}.
+ * own operation here: {@link buildSpotEarnExtendLutOperation}.
  */
 export async function buildSpotEarnInitOperation(
   ctx: ScriptContext,
@@ -102,8 +105,10 @@ export async function buildSpotEarnInitOperation(
     manager: args.manager,
     vault: args.vault,
     strategy: earn.lending,
-    adaptorProgram: ADAPTOR_PROGRAM_ID,
-    instructionDiscriminator: DISCRIMINATOR.INITIALIZE_JUPITER_EARN,
+    adaptorProgram: SPOT_ADAPTOR_PROGRAM_ID,
+    instructionDiscriminator: new Uint8Array(
+      SPOT_DISCRIMINATOR.INITIALIZE_JUPITER_EARN
+    ),
     additionalArgs: null,
   });
   instructions.push(initializeStrategyIx);
@@ -123,7 +128,7 @@ export async function buildSpotEarnInitOperation(
  */
 export async function buildSpotEarnDepositOperation(
   ctx: ScriptContext,
-  args: SpotEarnAmountArgs
+  args: SpotEarnDepositArgs
 ): Promise<BuiltOperation> {
   const earn = await deriveJupiterEarnAccounts({
     vault: args.vault,
@@ -156,15 +161,17 @@ export async function buildSpotEarnDepositOperation(
     strategy: earn.lending,
     vaultAssetMint: args.assetMint,
     assetTokenProgram: args.assetTokenProgram,
-    adaptorProgram: ADAPTOR_PROGRAM_ID,
+    adaptorProgram: SPOT_ADAPTOR_PROGRAM_ID,
     amount: args.amount,
-    instructionDiscriminator: DISCRIMINATOR.DEPOSIT_JUPITER_EARN,
+    instructionDiscriminator: new Uint8Array(
+      SPOT_DISCRIMINATOR.DEPOSIT_JUPITER_EARN
+    ),
     additionalArgs: null,
   });
 
   return {
     label: "spot:earn:deposit",
-    instructions: [appendRemainingAccounts(depositStrategyIx, remainingAccounts)],
+    instructions: [withRemainingAccounts(depositStrategyIx, remainingAccounts)],
     lookupTableAddresses: args.lookupTableAddresses,
   };
 }
@@ -177,7 +184,7 @@ export async function buildSpotEarnDepositOperation(
  */
 export async function buildSpotEarnWithdrawOperation(
   ctx: ScriptContext,
-  args: SpotEarnAmountArgs
+  args: SpotEarnWithdrawArgs
 ): Promise<BuiltOperation> {
   const earn = await deriveJupiterEarnAccounts({
     vault: args.vault,
@@ -211,16 +218,18 @@ export async function buildSpotEarnWithdrawOperation(
     strategy: earn.lending,
     vaultAssetMint: args.assetMint,
     assetTokenProgram: args.assetTokenProgram,
-    adaptorProgram: ADAPTOR_PROGRAM_ID,
+    adaptorProgram: SPOT_ADAPTOR_PROGRAM_ID,
     amount: args.amount,
-    instructionDiscriminator: DISCRIMINATOR.WITHDRAW_JUPITER_EARN,
+    instructionDiscriminator: new Uint8Array(
+      SPOT_DISCRIMINATOR.WITHDRAW_JUPITER_EARN
+    ),
     additionalArgs: null,
   });
 
   return {
     label: "spot:earn:withdraw",
     instructions: [
-      appendRemainingAccounts(withdrawStrategyIx, remainingAccounts),
+      withRemainingAccounts(withdrawStrategyIx, remainingAccounts),
     ],
     lookupTableAddresses: args.lookupTableAddresses,
   };
@@ -233,9 +242,9 @@ export async function buildSpotEarnWithdrawOperation(
  *
  * Migrated from the second (optional) transaction of `manager-initialize-earn.ts`.
  */
-export async function buildSpotEarnExtendLookupTableOperation(
+export async function buildSpotEarnExtendLutOperation(
   ctx: ScriptContext,
-  args: SpotEarnExtendLookupTableArgs
+  args: SpotEarnExtendLutArgs
 ): Promise<BuiltOperation> {
   const earn = await deriveJupiterEarnAccounts({
     vault: args.vault,
@@ -248,8 +257,10 @@ export async function buildSpotEarnExtendLookupTableOperation(
     manager: args.manager,
     vault: args.vault,
     strategy: earn.lending,
-    adaptorProgram: ADAPTOR_PROGRAM_ID,
-    instructionDiscriminator: DISCRIMINATOR.INITIALIZE_JUPITER_EARN,
+    adaptorProgram: SPOT_ADAPTOR_PROGRAM_ID,
+    instructionDiscriminator: new Uint8Array(
+      SPOT_DISCRIMINATOR.INITIALIZE_JUPITER_EARN
+    ),
     additionalArgs: null,
   });
 
@@ -291,7 +302,7 @@ export interface SpotEarnInitDirectWithdrawArgs {
   /**
    * The adaptor instruction the direct-withdraw flow invokes, as an 8-byte
    * discriminator. Per-deployment value (the legacy `directWithdrawDiscriminator`
-   * config); not one of the fixed Spot `DISCRIMINATOR` entries, so it is passed
+   * config); not one of the fixed Spot `SPOT_DISCRIMINATOR` entries, so it is passed
    * in rather than hardcoded.
    */
   instructionDiscriminator: ReadonlyUint8Array | readonly number[];
@@ -320,7 +331,7 @@ export async function buildSpotEarnInitDirectWithdrawOperation(
     admin: args.admin,
     vault: args.vault,
     strategy,
-    adaptorProgram: ADAPTOR_PROGRAM_ID,
+    adaptorProgram: SPOT_ADAPTOR_PROGRAM_ID,
     instructionDiscriminator: args.instructionDiscriminator,
     additionalArgs: args.additionalArgs,
     allowUserArgs: args.allowUserArgs,

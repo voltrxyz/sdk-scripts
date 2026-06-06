@@ -12,7 +12,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "TSX_TSCONFIG_PATH=../../tsconfig.check.json node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@solana-program/token": "^0.13.0",

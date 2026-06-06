@@ -1,5 +1,5 @@
 import type { AccountMeta, Address } from "@solana/kit";
-import { concatBytes, encodeU64Le } from "./account-meta.js";
+import { encodeU64Le } from "@voltr/scripts-core";
 
 /**
  * A pre-resolved Jupiter swap, supplied to the claim-reward builders.
@@ -36,5 +36,9 @@ export function buildClaimAdditionalArgs(
   if (rewardIndex === undefined) {
     return swapData;
   }
-  return concatBytes(encodeU64Le(BigInt(rewardIndex)), swapData);
+  const prefix = encodeU64Le(BigInt(rewardIndex));
+  const out = new Uint8Array(prefix.length + swapData.length);
+  out.set(prefix, 0);
+  out.set(swapData, prefix.length);
+  return out;
 }
