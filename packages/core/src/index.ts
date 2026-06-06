@@ -10,4 +10,8 @@ export * from "./tx/priority-fee.js";
 export * from "./tx/processor.js";
 export * from "./tx/send.js";
 export * from "./tx/simulate.js";
+export * from "./vault/constants.js";
+export * from "./vault/config.js";
 export * from "./vault/operations.js";
+export * from "./vault/admin.js";
+export * from "./vault/queries.js";

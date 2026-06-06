@@ -11,7 +11,7 @@ Legacy repos are migration references only and live at:
 
 Do not edit them as part of migration work.
 
-## 1. Shared core (in progress)
+## 1. Shared core (done)
 
 Land in `packages/core`:
 
@@ -21,19 +21,50 @@ Land in `packages/core`:
 - lookup-table fetch + extend — done (`getAddressesByLookupTable`, `buildExtendLookupTableInstructions`).
 - token-account setup — done (`setupTokenAccount`).
 - web3.js ↔ kit interop — done (`packages/core/src/interop/web3-kit.ts`).
-- transaction processor with `print` / `execute` modes — done (`processOperation`). `simulate` and `multisig` are stubbed and must be added once in `packages/core/src/tx/processor.ts`, not per-adapter.
-- vault operation builders — `vault:deposit` done. Remaining `vault:*` to migrate:
-  - `user-instant-withdraw-vault.ts` → `vault:instant-withdraw`
-  - `user-request-withdraw-vault.ts` → `vault:request-withdraw`
-  - `user-cancel-request-withdraw-vault.ts` → `vault:cancel-request-withdraw`
-  - `user-withdraw-vault.ts` → `vault:withdraw`
-  - `user-query-position.ts` → `vault:query:position` (query, not tx)
-  - `admin-init-vault.ts` / `admin-init-vault-and-set-token-metadata.ts` → `vault:init` / `vault:init-with-metadata`
-  - `admin-update-vault-config.ts` → `vault:update-config`
-  - `admin-accept-vault-admin.ts` → `vault:accept-admin`
-  - `admin-set-token-metadata.ts` → `vault:set-token-metadata`
-  - `admin-harvest-fee.ts` → `vault:harvest-fee`
-  - `query-strategy-positions.ts` → `vault:query:strategy-positions` (query)
+- transaction processor with `print` / `execute` / `simulate` / `multisig` modes — done (`processOperation`).
+- vault operation builders + query helpers — done (VOL-222). See the migration map below.
+
+### Base vault migration map (VOL-222)
+
+Every legacy base script now maps to a core builder or query helper. Builders
+return a `BuiltOperation`; query helpers return JSON-serializable data. The
+builder `label` equals the eventual CLI command name.
+
+| Legacy script (`voltr-base-scripts/src/scripts/`) | Core export | Label | File |
+| --- | --- | --- | --- |
+| `user-deposit-vault.ts` | `buildDepositVaultOperation` | `vault:deposit` | `vault/operations.ts` |
+| `user-request-withdraw-vault.ts` | `buildRequestWithdrawVaultOperation` | `vault:request-withdraw` | `vault/operations.ts` |
+| `user-cancel-request-withdraw-vault.ts` | `buildCancelRequestWithdrawVaultOperation` | `vault:cancel-request-withdraw` | `vault/operations.ts` |
+| `user-withdraw-vault.ts` | `buildWithdrawVaultOperation` | `vault:withdraw` | `vault/operations.ts` |
+| `user-instant-withdraw-vault.ts` | `buildInstantWithdrawVaultOperation` | `vault:instant-withdraw` | `vault/operations.ts` |
+| `user-query-position.ts` | `queryVaultPosition` (query) | `vault:query:position` | `vault/queries.ts` |
+| `query-strategy-positions.ts` | `queryStrategyPositions` (query) | `vault:query:strategy-positions` | `vault/queries.ts` |
+| `admin-init-vault.ts` | `buildInitVaultOperation` | `vault:init` | `vault/admin.ts` |
+| `admin-init-vault-and-set-token-metadata.ts` | `buildInitVaultWithMetadataOperation` | `vault:init-with-metadata` | `vault/admin.ts` |
+| `admin-set-token-metadata.ts` | `buildSetTokenMetadataOperation` | `vault:set-token-metadata` | `vault/admin.ts` |
+| `admin-update-vault-config.ts` | `buildUpdateVaultConfigOperation` | `vault:update-config` | `vault/admin.ts` |
+| `admin-accept-vault-admin.ts` | `buildAcceptVaultAdminOperation` | `vault:accept-admin` | `vault/admin.ts` |
+| `admin-harvest-fee.ts` | `buildHarvestFeeOperation` | `vault:harvest-fee` | `vault/admin.ts` |
+
+Shared pieces extracted alongside the builders:
+
+- `vault/constants.ts` — `NATIVE_MINT` (wSOL) and `PROTOCOL_ADMIN` (fixed
+  protocol fee recipient; no longer a per-script constant).
+- `vault/config.ts` — `VaultInitConfig` / `LpTokenMetadata` types, the
+  `VaultConfigField` re-export, and `serializeVaultConfigValue` (the
+  field-dependent update-config value encoder, unit-tested).
+
+Intentionally **not** migrated as part of a builder:
+
+- The optional lookup-table **create + extend** that `admin-init-vault*`
+  performed as two extra transactions after initializing the vault. That is
+  multi-transaction orchestration, which the operation-builder contract defers
+  to the CLI/processor layer (see [architecture.md](./architecture.md), rule 8).
+  The init builders return only the vault-initialization transaction; the LUT
+  building blocks already exist in core (`buildExtendLookupTableInstructions`,
+  `collectInstructionAddresses`, `getAddressesByLookupTable`) for the CLI ticket
+  to compose once multi-tx orchestration lands. Using an *existing* LUT is
+  already supported everywhere via the `lookupTableAddresses` passthrough.
 
 Reference: `/Users/shayn/Desktop/voltr/voltr-base-scripts/src/scripts/`.
 
