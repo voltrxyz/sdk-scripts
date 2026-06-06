@@ -66,7 +66,7 @@ test("--help lists the available commands", async () => {
   assert.match(text, /Usage: voltr-scripts/);
   assert.match(text, /vault:deposit/);
   assert.match(text, /kamino:market:deposit/);
-  assert.match(text, /spot:spot:buy/);
+  assert.match(text, /spot:swap:buy/);
   assert.match(text, /trustful:curve:borrow/);
   assert.match(text, /check/);
 });
@@ -166,10 +166,10 @@ test("--help lists the full Kamino command surface and claim flags", async () =>
     "kamino:kvault:init",
     "kamino:kvault:deposit",
     "kamino:kvault:withdraw",
-    "kamino:kvault:claim-rewards",
-    "kamino:kvault:claim-rewards-with-index",
-    "kamino:user:direct-withdraw",
-    "kamino:user:request-and-direct-withdraw",
+    "kamino:kvault:claim-reward",
+    "kamino:kvault:claim-reward-with-index",
+    "kamino:kvault:direct-withdraw",
+    "kamino:kvault:request-and-direct-withdraw",
   ]) {
     assert.ok(rootHelp.includes(cmd), `--help should list ${cmd}`);
   }
@@ -205,9 +205,9 @@ test("--help lists the full spot command surface", async () => {
   await assert.rejects(() => parse(program, ["--help"]));
   const text = output();
   for (const cmd of [
-    "spot:spot:init",
-    "spot:spot:buy",
-    "spot:spot:sell",
+    "spot:swap:init",
+    "spot:swap:buy",
+    "spot:swap:sell",
     "spot:earn:init",
     "spot:earn:deposit",
     "spot:earn:withdraw",
@@ -457,13 +457,13 @@ test("spot:earn:deposit requires --amount", async () => {
   );
 });
 
-test("spot:spot:buy requires --slippage-bps", async () => {
+test("spot:swap:buy requires --slippage-bps", async () => {
   const { program } = harness();
   await assert.rejects(() =>
     parse(program, [
       "--profile",
       "p.json",
-      "spot:spot:buy",
+      "spot:swap:buy",
       "--amount",
       "1000000",
     ])
@@ -674,6 +674,204 @@ test("trustful:curve:remove surfaces a missing profile field before any network/
           "/nonexistent/manager.json",
         ]),
       /vault\.vaultAddress/
+    );
+  });
+});
+
+// --- shared flag parser coverage (per integration group) ---
+//
+// parse.test.ts unit-tests every shared parser directly; these assert each
+// integration group surfaces an actionable CliError (naming the flag) when an
+// amount / bps / count / index / address flag is malformed — reached after
+// profile + field validation but before any keypair or network I/O.
+
+const VAULT_ONLY_PROFILE = JSON.stringify({
+  name: "cli-test",
+  cluster: "devnet",
+  rpcUrl: "http://localhost:8899",
+  vault: {
+    assetMintAddress: USDC,
+    assetTokenProgram: TOKEN_PROGRAM,
+    vaultAddress: SYSTEM,
+  },
+});
+
+const KAMINO_PROFILE = JSON.stringify({
+  name: "cli-test",
+  cluster: "devnet",
+  rpcUrl: "http://localhost:8899",
+  vault: {
+    assetMintAddress: USDC,
+    assetTokenProgram: TOKEN_PROGRAM,
+    vaultAddress: SYSTEM,
+  },
+  integrations: { kamino: { reserveAddress: USDC, kvaultAddress: USDC } },
+});
+
+const SPOT_PROFILE = JSON.stringify({
+  name: "cli-test",
+  cluster: "devnet",
+  rpcUrl: "http://localhost:8899",
+  vault: {
+    assetMintAddress: USDC,
+    assetTokenProgram: TOKEN_PROGRAM,
+    vaultAddress: SYSTEM,
+  },
+  integrations: {
+    spot: {
+      foreignMintAddress: SYSTEM,
+      foreignTokenProgram: TOKEN_PROGRAM,
+      assetOracleAddress: USDC,
+      foreignOracleAddress: SYSTEM,
+    },
+  },
+});
+
+const TRUSTFUL_PROFILE = JSON.stringify({
+  name: "cli-test",
+  cluster: "devnet",
+  rpcUrl: "http://localhost:8899",
+  vault: {
+    assetMintAddress: USDC,
+    assetTokenProgram: TOKEN_PROGRAM,
+    vaultAddress: SYSTEM,
+  },
+  integrations: { trustful: { strategySeedString: "demo" } },
+});
+
+test("kamino:market:deposit rejects a non-integer --amount", async () => {
+  await withTempProfile(KAMINO_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "kamino:market:deposit",
+          "--amount",
+          "abc",
+        ]),
+      /--amount must be a non-negative integer/
+    );
+  });
+});
+
+test("kamino:kvault:claim-reward-with-index rejects a non-integer --reward-index", async () => {
+  await withTempProfile(KAMINO_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "kamino:kvault:claim-reward-with-index",
+          "--reward-mint",
+          USDC,
+          "--farm-state",
+          SYSTEM,
+          "--user-state",
+          SYSTEM,
+          "--reward-index",
+          "abc",
+        ]),
+      /--reward-index must be a non-negative integer/
+    );
+  });
+});
+
+test("spot:swap:buy rejects an out-of-range --slippage-bps", async () => {
+  await withTempProfile(SPOT_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "spot:swap:buy",
+          "--amount",
+          "1000000",
+          "--slippage-bps",
+          "99999",
+        ]),
+      /--slippage-bps must be an integer between 0 and 10000/
+    );
+  });
+});
+
+test("spot:swap:buy rejects a zero --jupiter-max-accounts", async () => {
+  await withTempProfile(SPOT_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "spot:swap:buy",
+          "--amount",
+          "1000000",
+          "--slippage-bps",
+          "50",
+          "--jupiter-max-accounts",
+          "0",
+        ]),
+      /--jupiter-max-accounts must be a positive integer/
+    );
+  });
+});
+
+test("trustful:curve:borrow rejects an out-of-range --borrow-rate-bps", async () => {
+  await withTempProfile(VAULT_ONLY_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "trustful:curve:borrow",
+          "--amount",
+          "1",
+          "--borrow-rate-bps",
+          "99999",
+        ]),
+      /--borrow-rate-bps must be an integer between 0 and 10000/
+    );
+  });
+});
+
+test("trustful:arbitrary:deposit rejects a malformed --destination address", async () => {
+  await withTempProfile(TRUSTFUL_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "trustful:arbitrary:deposit",
+          "--amount",
+          "1",
+          "--destination",
+          "not-an-address",
+          "--position-value-after",
+          "1",
+        ]),
+      /--destination must be a valid base58 Solana address/
+    );
+  });
+});
+
+test("vault:harvest-fee rejects a malformed --manager address", async () => {
+  await withTempProfile(VAULT_ONLY_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "vault:harvest-fee",
+          "--manager",
+          "not-an-address",
+        ]),
+      /--manager must be a valid base58 Solana address/
     );
   });
 });

@@ -10,4 +10,3 @@ export * from "./swap.js";
 // Operation builders, one module per strategy domain.
 export * from "./operations/market.js";
 export * from "./operations/kvault.js";
-export * from "./operations/user.js";

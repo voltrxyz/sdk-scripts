@@ -1,8 +1,6 @@
 import type { Command } from "commander";
 import {
-  asAddress,
   findVaultStrategyAuthPda,
-  parseBigintAmount,
   processOperation,
   requireAssetMint,
   requireAssetTokenProgram,
@@ -17,64 +15,39 @@ import {
   type ScriptProfile,
 } from "@voltr/scripts-core";
 import {
-  buildKaminoKvaultClaimRewardsOperation,
+  buildKaminoKvaultClaimRewardOperation,
   buildKaminoKvaultDepositOperation,
+  buildKaminoKvaultDirectWithdrawOperation,
   buildKaminoKvaultInitOperation,
+  buildKaminoKvaultRequestAndDirectWithdrawOperation,
   buildKaminoKvaultWithdrawOperation,
   buildKaminoMarketClaimRewardOperation,
   buildKaminoMarketDepositOperation,
   buildKaminoMarketInitOperation,
   buildKaminoMarketWithdrawOperation,
-  buildKaminoUserDirectWithdrawOperation,
-  buildKaminoUserRequestAndDirectWithdrawOperation,
   type KaminoJupiterSwap,
 } from "@voltr/scripts-kamino";
-import { CliError } from "../lib/errors.js";
 import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
 import { setupKaminoRewardSwap } from "../lib/jupiter.js";
-import { loadRoleSigner } from "../lib/signers.js";
+import {
+  parseAddress,
+  parseAmount,
+  parseBps,
+  parseCount,
+  parseIndex,
+} from "../lib/parse.js";
+import { addRoleKeypairOption, loadRoleSigner } from "../lib/signers.js";
 
 // The standard SPL Token program. Most Kamino farm rewards are standard SPL
 // tokens; `--reward-token-program` overrides this for Token-2022 rewards.
 const DEFAULT_REWARD_TOKEN_PROGRAM =
   "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
-// --- flag coercion helpers ---
-
 /** Resolve a strategy address (reserve or kvault) from the profile. */
 type RequireStrategy = (
   profile: ScriptProfile,
   options?: { command?: string }
 ) => Address;
-
-function parseSlippageBps(value: string): number {
-  const bps = Number(value);
-  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
-    throw new CliError(
-      `--slippage-bps must be an integer between 0 and 10000: ${value}`
-    );
-  }
-  return bps;
-}
-
-function parseJupiterMaxAccounts(value: string): number {
-  const maxAccounts = Number(value);
-  if (!Number.isInteger(maxAccounts) || maxAccounts <= 0) {
-    throw new CliError(
-      `--jupiter-max-accounts must be a positive integer: ${value}`
-    );
-  }
-  return maxAccounts;
-}
-
-function parseRewardIndex(value: string): number {
-  if (!/^\d+$/.test(value)) {
-    throw new CliError(
-      `--reward-index must be a non-negative integer: ${value}`
-    );
-  }
-  return Number(value);
-}
 
 // --- manager strategy operations (init / deposit / withdraw) ---
 
@@ -114,14 +87,13 @@ function registerManagerStrategyCommand(
   program: Command,
   config: ManagerStrategyConfig
 ): void {
-  const command = program
-    .command(config.command)
-    .summary(config.summary)
-    .description(config.description)
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    );
+  const command = addRoleKeypairOption(
+    program
+      .command(config.command)
+      .summary(config.summary)
+      .description(config.description),
+    "manager"
+  );
   if (config.needsAmount) {
     command.requiredOption(
       "--amount <raw>",
@@ -140,13 +112,10 @@ function registerManagerStrategyCommand(
       const lookupTableAddresses = resolveLookupTableAddresses(profile, {
         command: config.command,
       });
-      let amount: bigint | undefined;
-      if (config.needsAmount) {
-        if (options.amount === undefined) {
-          throw new CliError(`${config.command} requires --amount`);
-        }
-        amount = parseBigintAmount(options.amount);
-      }
+      // commander enforces presence via requiredOption when needsAmount is set.
+      const amount = config.needsAmount
+        ? parseAmount(options.amount as string, "--amount")
+        : undefined;
       const processorOptions = resolveProcessorOptions(globals);
       const manager = await loadRoleSigner("manager", options.managerKeypair);
 
@@ -195,10 +164,7 @@ interface ClaimConfig {
   requireStrategy: RequireStrategy;
   /** When true, expose a required `--reward-index` (the `-with-index` variant). */
   withIndex: boolean;
-  build: (
-    ctx: ScriptContext,
-    args: ClaimActionArgs
-  ) => Promise<BuiltOperation>;
+  build: (ctx: ScriptContext, args: ClaimActionArgs) => Promise<BuiltOperation>;
 }
 
 interface ClaimOptions {
@@ -216,24 +182,22 @@ interface ClaimOptions {
 /**
  * Register a manager-signed reward claim command. The builder operates on a
  * single, already-resolved farm/reward, so the operator supplies the farm and
- * reward via flags (farm discovery via the farms SDK is out of scope — see
- * docs/kamino-migration.md). The reward→asset Jupiter swap is resolved here, in
- * the CLI layer, from `--swap-amount`; it is skipped when the reward already
- * equals the asset or `--swap-amount` is omitted.
+ * reward via flags (farm discovery is out of scope). The reward→asset Jupiter
+ * swap is resolved here, in the CLI layer, from `--swap-amount`; it is skipped
+ * when the reward already equals the asset or `--swap-amount` is omitted.
  *
  * The base (`claim-reward`) and `-with-index` variants share this registration;
  * the latter adds a required `--reward-index` that selects a specific reward
  * slot and the `*_WITH_INDEX` adaptor discriminator.
  */
 function registerClaimCommand(program: Command, config: ClaimConfig): void {
-  const command = program
-    .command(config.command)
-    .summary(config.summary)
-    .description(config.description)
-    .option(
-      "--manager-keypair <path>",
-      "manager keypair JSON path (or MANAGER_KEYPAIR env)"
-    )
+  const command = addRoleKeypairOption(
+    program
+      .command(config.command)
+      .summary(config.summary)
+      .description(config.description),
+    "manager"
+  )
     .requiredOption("--reward-mint <address>", "reward token mint to claim")
     .option(
       "--reward-token-program <address>",
@@ -252,11 +216,7 @@ function registerClaimCommand(program: Command, config: ClaimConfig): void {
       "--swap-amount <raw>",
       "raw reward amount to swap into the asset via Jupiter (omit when reward == asset)"
     )
-    .option(
-      "--slippage-bps <bps>",
-      "max Jupiter slippage in basis points",
-      "50"
-    )
+    .option("--slippage-bps <bps>", "max Jupiter slippage in basis points", "50")
     .option(
       "--jupiter-max-accounts <n>",
       "max accounts to request from Jupiter",
@@ -279,23 +239,24 @@ function registerClaimCommand(program: Command, config: ClaimConfig): void {
     const lookupTableAddresses = resolveLookupTableAddresses(profile, {
       command: config.command,
     });
-    const rewardMint = asAddress(options.rewardMint, "--reward-mint");
-    const rewardTokenProgram = asAddress(
+    const rewardMint = parseAddress(options.rewardMint, "--reward-mint");
+    const rewardTokenProgram = parseAddress(
       options.rewardTokenProgram,
       "--reward-token-program"
     );
-    const farmState = asAddress(options.farmState, "--farm-state");
-    const userState = asAddress(options.userState, "--user-state");
+    const farmState = parseAddress(options.farmState, "--farm-state");
+    const userState = parseAddress(options.userState, "--user-state");
     const rewardIndex =
       config.withIndex && options.rewardIndex !== undefined
-        ? parseRewardIndex(options.rewardIndex)
+        ? parseIndex(options.rewardIndex, "--reward-index")
         : undefined;
     const swapAmount = options.swapAmount
-      ? parseBigintAmount(options.swapAmount)
+      ? parseAmount(options.swapAmount, "--swap-amount")
       : 0n;
-    const slippageBps = parseSlippageBps(options.slippageBps);
-    const jupiterMaxAccounts = parseJupiterMaxAccounts(
-      options.jupiterMaxAccounts
+    const slippageBps = parseBps(options.slippageBps, "--slippage-bps");
+    const jupiterMaxAccounts = parseCount(
+      options.jupiterMaxAccounts,
+      "--jupiter-max-accounts"
     );
     const processorOptions = resolveProcessorOptions(globals);
     const manager = await loadRoleSigner("manager", options.managerKeypair);
@@ -343,7 +304,7 @@ function registerKaminoMarketCommands(program: Command): void {
     command: "kamino:market:init",
     summary: "initialize a Voltr strategy backed by a Kamino lending market",
     description:
-      "Initialize a Voltr strategy backed by a klend reserve (the reserve is the strategy id). Uses integrations.kamino.reserveAddress.",
+      "Initialize a Voltr strategy backed by a klend reserve (the reserve is the strategy id). Uses integrations.kamino.reserveAddress. Signs as the vault manager.",
     requireStrategy: requireKaminoReserve,
     needsAmount: false,
     build: (ctx, a) =>
@@ -361,7 +322,7 @@ function registerKaminoMarketCommands(program: Command): void {
     command: "kamino:market:deposit",
     summary: "deposit vault assets into a Kamino lending market",
     description:
-      "Deposit vault assets into a Kamino lending market (klend reserve) via the Voltr Kamino adaptor.",
+      "Deposit vault assets into a Kamino lending market (klend reserve) via the Voltr Kamino adaptor. --amount is the raw asset amount in smallest units. Signs as the vault manager.",
     requireStrategy: requireKaminoReserve,
     needsAmount: true,
     build: (ctx, a) =>
@@ -380,7 +341,7 @@ function registerKaminoMarketCommands(program: Command): void {
     command: "kamino:market:withdraw",
     summary: "withdraw vault assets from a Kamino lending market",
     description:
-      "Withdraw vault assets from a Kamino lending market (klend reserve). Pass a very large --amount to withdraw the entire position.",
+      "Withdraw vault assets from a Kamino lending market (klend reserve). --amount is the raw asset amount in smallest units; pass a very large --amount to withdraw the entire position. Signs as the vault manager.",
     requireStrategy: requireKaminoReserve,
     needsAmount: true,
     build: (ctx, a) =>
@@ -415,7 +376,7 @@ function registerKaminoMarketCommands(program: Command): void {
     command: "kamino:market:claim-reward",
     summary: "claim a Kamino market farm reward into the vault asset",
     description:
-      "Claim the first (non-indexed) reward from a klend reserve farm, swapping it into the vault asset via Jupiter when it differs from the asset.",
+      "Claim the first (non-indexed) reward from a klend reserve farm, swapping it into the vault asset via Jupiter when it differs from the asset. Signs as the vault manager.",
     requireStrategy: requireKaminoReserve,
     withIndex: false,
     build: marketClaimBuild,
@@ -425,20 +386,25 @@ function registerKaminoMarketCommands(program: Command): void {
     command: "kamino:market:claim-reward-with-index",
     summary: "claim a specific Kamino market farm reward slot",
     description:
-      "Claim a specific reward slot (--reward-index) from a klend reserve farm, swapping it into the vault asset via Jupiter when it differs from the asset.",
+      "Claim a specific reward slot (--reward-index) from a klend reserve farm, swapping it into the vault asset via Jupiter when it differs from the asset. Signs as the vault manager.",
     requireStrategy: requireKaminoReserve,
     withIndex: true,
     build: marketClaimBuild,
   });
 }
 
-/** Kvault strategies (`kamino:kvault:*`), backed by a Kamino vault. */
+/**
+ * Kvault strategies (`kamino:kvault:*`), backed by a Kamino vault. Covers both
+ * the manager strategy operations (init / deposit / withdraw / claim-reward) and
+ * the user direct-withdraw flows, since all of them act on the same kvault
+ * strategy and the `--<role>-keypair` flag carries the signer role.
+ */
 function registerKaminoKvaultCommands(program: Command): void {
   registerManagerStrategyCommand(program, {
     command: "kamino:kvault:init",
     summary: "initialize a Voltr strategy backed by a Kamino vault",
     description:
-      "Initialize a Voltr strategy backed by a Kamino vault (the kvault is the strategy id). Uses integrations.kamino.kvaultAddress.",
+      "Initialize a Voltr strategy backed by a Kamino vault (the kvault is the strategy id). Uses integrations.kamino.kvaultAddress. Signs as the vault manager.",
     requireStrategy: requireKaminoKvault,
     needsAmount: false,
     build: (ctx, a) =>
@@ -456,7 +422,7 @@ function registerKaminoKvaultCommands(program: Command): void {
     command: "kamino:kvault:deposit",
     summary: "deposit vault assets into a Kamino vault",
     description:
-      "Deposit vault assets into a Kamino vault (kvault) via the Voltr Kamino adaptor.",
+      "Deposit vault assets into a Kamino vault (kvault) via the Voltr Kamino adaptor. --amount is the raw asset amount in smallest units. Signs as the vault manager.",
     requireStrategy: requireKaminoKvault,
     needsAmount: true,
     build: (ctx, a) =>
@@ -475,7 +441,7 @@ function registerKaminoKvaultCommands(program: Command): void {
     command: "kamino:kvault:withdraw",
     summary: "withdraw vault assets from a Kamino vault",
     description:
-      "Withdraw vault assets from a Kamino vault (kvault). Pass a very large --amount to withdraw the entire position.",
+      "Withdraw vault assets from a Kamino vault (kvault). --amount is the raw asset amount in smallest units; pass a very large --amount to withdraw the entire position. Signs as the vault manager.",
     requireStrategy: requireKaminoKvault,
     needsAmount: true,
     build: (ctx, a) =>
@@ -491,7 +457,7 @@ function registerKaminoKvaultCommands(program: Command): void {
   });
 
   const kvaultClaimBuild = (ctx: ScriptContext, a: ClaimActionArgs) =>
-    buildKaminoKvaultClaimRewardsOperation(ctx, {
+    buildKaminoKvaultClaimRewardOperation(ctx, {
       manager: a.manager,
       vault: a.vault,
       assetMint: a.assetMint,
@@ -507,88 +473,90 @@ function registerKaminoKvaultCommands(program: Command): void {
     });
 
   registerClaimCommand(program, {
-    command: "kamino:kvault:claim-rewards",
+    command: "kamino:kvault:claim-reward",
     summary: "claim a Kamino vault farm reward into the vault asset",
     description:
-      "Claim the first (non-indexed) reward from a Kamino vault farm, swapping it into the vault asset via Jupiter when it differs from the asset.",
+      "Claim the first (non-indexed) reward from a Kamino vault farm, swapping it into the vault asset via Jupiter when it differs from the asset. Signs as the vault manager.",
     requireStrategy: requireKaminoKvault,
     withIndex: false,
     build: kvaultClaimBuild,
   });
 
   registerClaimCommand(program, {
-    command: "kamino:kvault:claim-rewards-with-index",
+    command: "kamino:kvault:claim-reward-with-index",
     summary: "claim a specific Kamino vault farm reward slot",
     description:
-      "Claim a specific reward slot (--reward-index) from a Kamino vault farm, swapping it into the vault asset via Jupiter when it differs from the asset.",
+      "Claim a specific reward slot (--reward-index) from a Kamino vault farm, swapping it into the vault asset via Jupiter when it differs from the asset. Signs as the vault manager.",
     requireStrategy: requireKaminoKvault,
     withIndex: true,
     build: kvaultClaimBuild,
   });
+
+  registerKaminoKvaultUserCommands(program);
 }
 
 /**
- * User direct-withdraw flows (`kamino:user:*`). A vault user withdraws their
- * share directly from the Kamino vault (kvault) strategy. These use the command
- * names that match the builders' `label` fields (the architecture mandates
- * command name == builder label); the VOL-228 ticket's suggested
- * `kamino:strategy:*` names are documented in docs/kamino-migration.md.
+ * User direct-withdraw flows (`kamino:kvault:direct-withdraw`,
+ * `kamino:kvault:request-and-direct-withdraw`). A vault user withdraws their
+ * share directly from the Kamino vault (kvault) strategy; the user signs.
  */
-function registerKaminoUserCommands(program: Command): void {
-  program
-    .command("kamino:user:direct-withdraw")
-    .summary("directly withdraw a user's share of a Kamino vault strategy")
-    .description(
-      "Directly withdraw the user's share of a Kamino vault (kvault) strategy. Uses integrations.kamino.kvaultAddress."
-    )
-    .option(
-      "--user-keypair <path>",
-      "user keypair JSON path (or USER_KEYPAIR env)"
-    )
-    .action(async (options: { userKeypair?: string }) => {
-      const command = "kamino:user:direct-withdraw";
+function registerKaminoKvaultUserCommands(program: Command): void {
+  const directWithdrawCommand = "kamino:kvault:direct-withdraw";
+  addRoleKeypairOption(
+    program
+      .command(directWithdrawCommand)
+      .summary("directly withdraw a user's share of a Kamino vault strategy")
+      .description(
+        "Directly withdraw the user's share of a Kamino vault (kvault) strategy. Uses integrations.kamino.kvaultAddress. Signs as the vault user."
+      ),
+    "user"
+  ).action(async (options: { userKeypair?: string }) => {
+    const { globals, profile, ctx } = await loadCommandContext(program);
+    const vault = requireVaultAddress(profile, {
+      command: directWithdrawCommand,
+    });
+    const assetMint = requireAssetMint(profile);
+    const assetTokenProgram = requireAssetTokenProgram(profile);
+    const kvault = requireKaminoKvault(profile, {
+      command: directWithdrawCommand,
+    });
+    const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+      command: directWithdrawCommand,
+    });
+    const processorOptions = resolveProcessorOptions(globals);
+    const user = await loadRoleSigner("user", options.userKeypair);
 
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const vault = requireVaultAddress(profile, { command });
-      const assetMint = requireAssetMint(profile);
-      const assetTokenProgram = requireAssetTokenProgram(profile);
-      const kvault = requireKaminoKvault(profile, { command });
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
-      const processorOptions = resolveProcessorOptions(globals);
-      const user = await loadRoleSigner("user", options.userKeypair);
-
-      const operation = await buildKaminoUserDirectWithdrawOperation(ctx, {
-        user,
-        vault,
-        assetMint,
-        assetTokenProgram,
-        kvault,
-        lookupTableAddresses,
-      });
-
-      await processOperation({
-        ctx,
-        payer: user,
-        operation,
-        mode: globals.mode,
-        options: processorOptions,
-      });
+    const operation = await buildKaminoKvaultDirectWithdrawOperation(ctx, {
+      user,
+      vault,
+      assetMint,
+      assetTokenProgram,
+      kvault,
+      lookupTableAddresses,
     });
 
-  program
-    .command("kamino:user:request-and-direct-withdraw")
-    .summary(
-      "request a vault withdrawal and direct-withdraw from a Kamino vault in one tx"
-    )
-    .description(
-      "Request a vault withdrawal and directly withdraw from the Kamino vault (kvault) strategy in a single transaction."
-    )
-    .option(
-      "--user-keypair <path>",
-      "user keypair JSON path (or USER_KEYPAIR env)"
-    )
+    await processOperation({
+      ctx,
+      payer: user,
+      operation,
+      mode: globals.mode,
+      options: processorOptions,
+    });
+  });
+
+  const requestAndDirectWithdrawCommand =
+    "kamino:kvault:request-and-direct-withdraw";
+  addRoleKeypairOption(
+    program
+      .command(requestAndDirectWithdrawCommand)
+      .summary(
+        "request a vault withdrawal and direct-withdraw from a Kamino vault in one tx"
+      )
+      .description(
+        "Request a vault withdrawal and directly withdraw from the Kamino vault (kvault) strategy in a single transaction. --amount is the raw amount to request (LP units when --in-lp). Signs as the vault user."
+      ),
+    "user"
+  )
     .requiredOption(
       "--amount <raw>",
       "raw amount to request (LP units when --in-lp)"
@@ -602,21 +570,23 @@ function registerKaminoUserCommands(program: Command): void {
         inLp?: boolean;
         all?: boolean;
       }) => {
-        const command = "kamino:user:request-and-direct-withdraw";
-
         const { globals, profile, ctx } = await loadCommandContext(program);
-        const vault = requireVaultAddress(profile, { command });
+        const vault = requireVaultAddress(profile, {
+          command: requestAndDirectWithdrawCommand,
+        });
         const assetMint = requireAssetMint(profile);
         const assetTokenProgram = requireAssetTokenProgram(profile);
-        const kvault = requireKaminoKvault(profile, { command });
-        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-          command,
+        const kvault = requireKaminoKvault(profile, {
+          command: requestAndDirectWithdrawCommand,
         });
-        const withdrawAmount = parseBigintAmount(options.amount);
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command: requestAndDirectWithdrawCommand,
+        });
+        const withdrawAmount = parseAmount(options.amount, "--amount");
         const processorOptions = resolveProcessorOptions(globals);
         const user = await loadRoleSigner("user", options.userKeypair);
 
-        const operation = await buildKaminoUserRequestAndDirectWithdrawOperation(
+        const operation = await buildKaminoKvaultRequestAndDirectWithdrawOperation(
           ctx,
           {
             user,
@@ -652,5 +622,4 @@ function registerKaminoUserCommands(program: Command): void {
 export function registerKaminoCommands(program: Command): void {
   registerKaminoMarketCommands(program);
   registerKaminoKvaultCommands(program);
-  registerKaminoUserCommands(program);
 }

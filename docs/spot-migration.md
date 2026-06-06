@@ -16,9 +16,9 @@ read-only and ignores `--mode`.
 
 | Legacy script | CLI command | Builder / query (`@voltr/scripts-spot`) |
 | --- | --- | --- |
-| `manager-initialize-spot.ts` | `spot:spot:init` | `buildSpotSpotInitOperation` |
-| `manager-buy-spot.ts` | `spot:spot:buy` | `buildSpotSpotBuyOperation` |
-| `manager-sell-spot.ts` | `spot:spot:sell` | `buildSpotSpotSellOperation` |
+| `manager-initialize-spot.ts` | `spot:swap:init` | `buildSpotSwapInitOperation` |
+| `manager-buy-spot.ts` | `spot:swap:buy` | `buildSpotSwapBuyOperation` |
+| `manager-sell-spot.ts` | `spot:swap:sell` | `buildSpotSwapSellOperation` |
 | `manager-initialize-earn.ts` (tx 1) | `spot:earn:init` | `buildSpotEarnInitOperation` |
 | `manager-initialize-earn.ts` (tx 2, optional LUT) | `spot:earn:extend-lut` | `buildSpotEarnExtendLutOperation` |
 | `manager-deposit-earn.ts` | `spot:earn:deposit` | `buildSpotEarnDepositOperation` |
@@ -102,9 +102,9 @@ has no `integrations.<adapter>` section to read from.
 
 ## Behavior-preservation notes
 
-- **`spot:spot:sell` corrects a latent bug.** The legacy `manager-sell-spot.ts`
+- **`spot:swap:sell` corrects a latent bug.** The legacy `manager-sell-spot.ts`
   passed `amountIn = 0` (and the asset→foreign direction) to its Jupiter helper,
-  so it never built a swap. `buildSpotSpotSellOperation` implements the intended
+  so it never built a swap. `buildSpotSwapSellOperation` implements the intended
   behavior — a foreign→asset swap of `amount`, symmetric with buy. (Documented in
   the builder and in [migration-plan.md](./migration-plan.md).)
 - **`manager-initialize-earn.ts` was two transactions** (init strategy, then

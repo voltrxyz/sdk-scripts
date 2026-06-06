@@ -396,7 +396,12 @@ export async function buildKaminoMarketClaimRewardOperation(
   );
 
   return {
-    label: "kamino:market:claim-reward",
+    // The base and `-with-index` CLI variants build different adaptor
+    // discriminators, so the label reflects which one ran (command == label).
+    label:
+      args.rewardIndex === undefined
+        ? "kamino:market:claim-reward"
+        : "kamino:market:claim-reward-with-index",
     instructions,
     lookupTableAddresses: [
       ...(args.lookupTableAddresses ?? []),

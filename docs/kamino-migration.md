@@ -18,11 +18,11 @@ and the few deliberate deferrals.
 | `manager-deposit-kvault.ts` | `buildKaminoKvaultDepositOperation` | `kamino:kvault:deposit` | `kamino:kvault:deposit` | Wired |
 | `manager-withdraw-kvault.ts` | `buildKaminoKvaultWithdrawOperation` | `kamino:kvault:withdraw` | `kamino:kvault:withdraw` | Wired |
 | `manager-claim-market-reward.ts` | `buildKaminoMarketClaimRewardOperation` (no `rewardIndex`) | `kamino:market:claim-reward` | `kamino:market:claim-reward` | Wired |
-| `manager-claim-market-reward-with-index.ts` | `buildKaminoMarketClaimRewardOperation` (`rewardIndex` set) | `kamino:market:claim-reward` | `kamino:market:claim-reward-with-index` | Wired as a CLI variant over the same builder |
-| `manager-claim-kvault-rewards.ts` | `buildKaminoKvaultClaimRewardsOperation` (no `rewardIndex`) | `kamino:kvault:claim-rewards` | `kamino:kvault:claim-rewards` | Wired |
-| `manager-claim-kvault-rewards-with-index.ts` | `buildKaminoKvaultClaimRewardsOperation` (`rewardIndex` set) | `kamino:kvault:claim-rewards` | `kamino:kvault:claim-rewards-with-index` | Wired as a CLI variant over the same builder |
-| `user-direct-withdraw-strategy.ts` | `buildKaminoUserDirectWithdrawOperation` | `kamino:user:direct-withdraw` | `kamino:user:direct-withdraw` | Wired |
-| `user-request-and-direct-withdraw-strategy.ts` | `buildKaminoUserRequestAndDirectWithdrawOperation` | `kamino:user:request-and-direct-withdraw` | `kamino:user:request-and-direct-withdraw` | Wired |
+| `manager-claim-market-reward-with-index.ts` | `buildKaminoMarketClaimRewardOperation` (`rewardIndex` set) | `kamino:market:claim-reward-with-index` | `kamino:market:claim-reward-with-index` | CLI variant over the same builder; the builder emits the `-with-index` label + discriminator when `rewardIndex` is set, so command == label |
+| `manager-claim-kvault-rewards.ts` | `buildKaminoKvaultClaimRewardOperation` (no `rewardIndex`) | `kamino:kvault:claim-reward` | `kamino:kvault:claim-reward` | Wired |
+| `manager-claim-kvault-rewards-with-index.ts` | `buildKaminoKvaultClaimRewardOperation` (`rewardIndex` set) | `kamino:kvault:claim-reward-with-index` | `kamino:kvault:claim-reward-with-index` | CLI variant over the same builder; the builder emits the `-with-index` label + discriminator when `rewardIndex` is set, so command == label |
+| `user-direct-withdraw-strategy.ts` | `buildKaminoKvaultDirectWithdrawOperation` | `kamino:kvault:direct-withdraw` | `kamino:kvault:direct-withdraw` | Wired |
+| `user-request-and-direct-withdraw-strategy.ts` | `buildKaminoKvaultRequestAndDirectWithdrawOperation` | `kamino:kvault:request-and-direct-withdraw` | `kamino:kvault:request-and-direct-withdraw` | Wired |
 | `admin-add-adaptor.ts` | `buildAddAdaptorOperation` (`packages/core`) | `vault:add-adaptor` | `vault:add-adaptor` | Wired as generic vault adaptor admin |
 | `admin-init-direct-withdraw.ts` | `buildInitDirectWithdrawStrategyOperation` (`packages/core`) | `vault:init-direct-withdraw` | `vault:init-direct-withdraw` | Wired as generic vault adaptor admin |
 
@@ -56,7 +56,9 @@ declares its operation-specific *ordering*:
   for reward claims.
 
 The operation builders are grouped one module per strategy domain
-(`operations/market.ts`, `operations/kvault.ts`, `operations/user.ts`).
+(`operations/market.ts`, `operations/kvault.ts`). The `kvault` module holds both
+the manager strategy operations and the user direct-withdraw flows, since both
+act on the Kamino vault (kvault) strategy.
 
 ## klend-sdk used as a decoder only
 
@@ -75,11 +77,15 @@ Reserve and kvault strategy identifiers come from the profile. Amounts, reward
 identity, reward index, signer paths, and optional Jupiter swap settings are
 flags.
 
-The VOL-228 ticket suggested `kamino:strategy:*` for the user direct-withdraw
-commands. The CLI uses the builder labels instead:
-`kamino:user:direct-withdraw` and
-`kamino:user:request-and-direct-withdraw`. That keeps the command name equal to
-the operation label, matching the architecture rule.
+The user direct-withdraw flows act on the Kamino vault (kvault) strategy, so the
+VOL-235 standardization groups them under the `kvault` domain alongside the
+manager kvault operations: `kamino:kvault:direct-withdraw` and
+`kamino:kvault:request-and-direct-withdraw`. The signer role (user vs manager) is
+carried by the `--<role>-keypair` flag, not the domain segment — mirroring how
+`vault:*` mixes admin/manager/user operations. (The VOL-228 ticket had suggested
+a separate `kamino:strategy:*` / `kamino:user:*` domain; that was dropped because
+`<strategy>` is the domain metavariable and `user` is not a Kamino strategy
+flavor.) Command name still equals the builder `label`.
 
 The two legacy admin scripts are wired under `vault:*` because the builders are
 generic base-vault operations from VOL-224, parameterized by the adaptor program

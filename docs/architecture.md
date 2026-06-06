@@ -81,7 +81,8 @@ The CLI must stay thin. Each command is "parse flags → coerce values → call 
 - Commands live one file per group under `apps/cli/src/commands/<group>.ts`, each exporting a `register<Group>Commands(program)` function. Adding a group is an import + one register call in `index.ts`.
 - Shared CLI helpers live under `apps/cli/src/lib/`:
   - `globals.ts` — global option definitions, `loadCommandContext(program)` (read globals → `loadProfile` → `createScriptContext`), and `resolveProcessorOptions(globals)`.
-  - `signers.ts` — `loadRoleSigner(role, flagValue)` resolves an `admin` / `manager` / `user` keypair from the `--<role>-keypair` flag or the `<ROLE>_KEYPAIR` env var.
+  - `signers.ts` — `loadRoleSigner(role, flagValue)` resolves an `admin` / `manager` / `user` keypair from the `--<role>-keypair` flag or the `<ROLE>_KEYPAIR` env var, and `addRoleKeypairOption(command, role)` declares that flag with one canonical wording on every command.
+  - `parse.ts` — flag coercion every command shares: `parseAmount`, `parseBps`, `parseU16`, `parseCount`, `parseIndex`, and `parseAddress`. Each takes the raw value plus the flag name and throws a `CliError` that names the flag. Do not re-implement amount / basis-point / index / count / address parsing inside a command module.
   - `output.ts` — formatting helpers for non-transaction output (summaries, queries).
   - `errors.ts` — `CliError` (user-facing, no stack trace) and the top-level `reportError` handler.
 
@@ -109,9 +110,11 @@ packages/<adapter>/src/
 ```
 
 - Filenames are kebab-case. Group operation builders by strategy **domain**
-  (`market`/`kvault`, `spot`/`earn`, `arbitrary`/`curve`) rather than one file per
+  (`market`/`kvault`, `swap`/`earn`, `arbitrary`/`curve`) rather than one file per
   action — this keeps each domain's shared internals (a private swap composer, a
-  hand-built instruction) in one cohesive module.
+  hand-built instruction) in one cohesive module. All of a domain's builders live
+  in one module, regardless of signer role (the Kamino kvault module holds both
+  the manager strategy ops and the user direct-withdraws).
 - An adapter-local `account-meta.ts` is only justified when remaining-account
   ordering is genuinely protocol-specific and not expressible with the shared
   core helpers. Generic helpers live in `core`, not the adapter.
@@ -126,9 +129,9 @@ packages/<adapter>/src/
 
 The builder `label` MUST equal the CLI command name, and the function / label /
 args names are mechanically derivable from each other (split the label on `:`,
-PascalCase each segment). For Spot the integration and the first strategy domain
-are both `spot`, so the buy builder is `buildSpotSpotBuyOperation` with label
-`spot:spot:buy`.
+PascalCase each segment). For example the Spot swap-buy builder is
+`buildSpotSwapBuyOperation` with label `spot:swap:buy`. Never repeat the
+integration as the domain (no `spot:spot:*`).
 
 ### Constants
 
@@ -211,7 +214,7 @@ interface BuiltOperation {
 ### Rules
 
 1. **No filesystem I/O.** Builders never call `readFile`, `loadProfile`, or `loadSignerFromFile`. Signers and JSON profile data come in as args, already loaded by the CLI.
-2. **No CLI parsing.** Builders accept already-coerced types (`Address`, `bigint`, `KeyPairSigner`, `boolean`, etc.). The CLI uses `asAddress`, `optionalAddress`, `parseBigintAmount`, `loadSignerFromFile` to coerce before calling.
+2. **No CLI parsing.** Builders accept already-coerced types (`Address`, `bigint`, `KeyPairSigner`, `boolean`, etc.). The CLI coerces flag values with the shared parsers in `apps/cli/src/lib/parse.ts` (`parseAddress`, `parseAmount`, `parseBps`, `parseCount`, `parseIndex`, `parseU16` — which wrap core's `asAddress` / `parseBigintAmount` primitives and re-throw a flag-aware `CliError`) and loads signers with `loadRoleSigner`, before calling.
 3. **No transaction sending.** Builders return instructions; they never call `sendAndConfirmOptimizedTx`. The processor decides whether to send, simulate, print, or hand off to a multisig.
 4. **Return everything the processor needs.** ATA-creation instructions, sync-native, vault SDK instructions, adapter-specific instructions — all of them, in order, in `instructions`. Any LUTs the tx will need go in `lookupTableAddresses`; the processor fetches their contents.
 5. **RPC reads are allowed,** but only to construct instructions (e.g. checking ATA existence, fetching adapter state to derive remaining accounts). Use `ctx.rpc`.
@@ -231,10 +234,29 @@ interface BuiltOperation {
 Rules:
 
 - `<adapter>` is the package name: `kamino`, `spot`, `trustful`.
-- `<strategy>` is the adapter-internal flavor: `market` / `kvault` (Kamino); `spot` / `earn` (Spot); `arbitrary` / `curve` (Trustful).
-- `<action>` is an imperative verb: `init`, `deposit`, `withdraw`, `borrow`, `repay`, `claim-reward`, `harvest-fee`, `request-withdraw`, `cancel-request-withdraw`, etc.
+- `<strategy>` is the adapter-internal flavor: `market` / `kvault` (Kamino); `swap` / `earn` (Spot); `arbitrary` / `curve` (Trustful). Never repeat the adapter as the domain (no `spot:spot:*`).
+- `<action>` is a singular, imperative verb: `init`, `deposit`, `withdraw`, `buy`, `sell`, `borrow`, `repay`, `remove`, `claim-reward`, `direct-withdraw`, `request-withdraw`, `cancel-request-withdraw`, `harvest-fee`, etc. Use the singular form even when the protocol instruction is plural (`claim-reward`, not `claim-rewards`).
+- The signer role is carried by the `--<role>-keypair` flag, not the domain segment, so a user-signed flow lives under the strategy domain it acts on (the Kamino kvault direct-withdraws are `kamino:kvault:direct-withdraw` and `kamino:kvault:request-and-direct-withdraw`, not a separate `kamino:user:*` domain).
 - For queries, the literal segment `query` marks the command as side-effect free. The noun that follows describes what is read (`position`, `reserve`, `strategy-positions`, `oracle`).
 - The builder's `label` field MUST equal the command name. The CLI command name and the builder label are the same string.
+
+### Command renames (VOL-235)
+
+The first integration CLIs landed with three naming divergences, corrected during
+the VOL-235 standardization. These commands had not shipped to operators, so the
+old names were removed outright rather than aliased:
+
+| Old command | New command |
+| ----------- | ----------- |
+| `spot:spot:init` / `spot:spot:buy` / `spot:spot:sell` | `spot:swap:init` / `spot:swap:buy` / `spot:swap:sell` |
+| `kamino:kvault:claim-rewards[-with-index]` | `kamino:kvault:claim-reward[-with-index]` |
+| `kamino:user:direct-withdraw` | `kamino:kvault:direct-withdraw` |
+| `kamino:user:request-and-direct-withdraw` | `kamino:kvault:request-and-direct-withdraw` |
+
+The matching builders, args interfaces, and `BuiltOperation.label`s were renamed
+in lockstep (`buildSpotSwapBuyOperation`, `buildKaminoKvaultClaimRewardOperation`,
+`buildKaminoKvaultDirectWithdrawOperation`, …) so command name == label still
+holds.
 
 ## Query vs transaction commands
 
@@ -317,8 +339,8 @@ Default to `@solana/kit` and `@solana-program/*` throughout. Some upstream SDKs 
    - Set `label` to the eventual CLI command name (e.g. `"kamino:market:deposit"`).
 4. **Re-export from the package's `src/index.ts`.**
 5. **Add the CLI command** to the group's module, `apps/cli/src/commands/<group>.ts`, inside its `register<Group>Commands(program)` function (a new group means a new module + one `register` call in `index.ts`):
-   - Use commander to declare flags. One flag per builder arg that has no profile source. Make `--amount` and other per-call values `requiredOption`; make role keypairs a plain `option` (presence is enforced by `loadRoleSigner`, so the env-var fallback works).
-   - Load the profile and context with `loadCommandContext(program)`; pull profile values with the `require*` accessors; coerce flags with core helpers (`asAddress`, `parseBigintAmount`); load signers with `loadRoleSigner(role, flag)`.
+   - Use commander to declare flags. One flag per builder arg that has no profile source. Make `--amount` and other per-call values `requiredOption`; declare the signer keypair with `addRoleKeypairOption(command, role)` (a plain `option` whose presence is enforced later by `loadRoleSigner`, so the env-var fallback works and the wording stays identical across commands).
+   - Load the profile and context with `loadCommandContext(program)`; pull profile values with the `require*` accessors; coerce flags with the shared parsers from `lib/parse.ts` (`parseAddress`, `parseAmount`, `parseBps`, `parseCount`, `parseIndex`, `parseU16`) — each names the flag in its `CliError`; load signers with `loadRoleSigner(role, flag)`.
    - Resolve `resolveProcessorOptions(globals)` before loading keypairs so an invalid `--mode`/priority-fee invocation fails fast.
    - Call the builder with `(ctx, args)`.
    - Hand the result to `processOperation({ ctx, payer, operation, mode, options })`.
@@ -331,21 +353,25 @@ Default to `@solana/kit` and `@solana-program/*` throughout. Some upstream SDKs 
 ```ts
 // apps/cli/src/commands/kamino.ts
 export function registerKaminoCommands(program: Command): void {
-  program
-    .command("kamino:market:deposit")
-    .description("Deposit vault assets into a Kamino lending market")
-    .option("--manager-keypair <path>", "manager keypair JSON path (or MANAGER_KEYPAIR env)")
+  const command = "kamino:market:deposit";
+  addRoleKeypairOption(
+    program
+      .command(command)
+      .summary("deposit vault assets into a Kamino lending market")
+      .description(
+        "Deposit vault assets into a Kamino lending market (klend reserve). --amount is the raw asset amount in smallest units. Signs as the vault manager."
+      ),
+    "manager"
+  )
     .requiredOption("--amount <raw>", "raw asset amount in smallest units")
     .action(async (options: { managerKeypair?: string; amount: string }) => {
-      const command = "kamino:market:deposit";
-
       const { globals, profile, ctx } = await loadCommandContext(program);
       const vault = requireVaultAddress(profile, { command });
       const assetMint = requireAssetMint(profile);
       const assetTokenProgram = requireAssetTokenProgram(profile);
       const reserve = requireKaminoReserve(profile, { command });
       const lookupTableAddresses = resolveLookupTableAddresses(profile, { command });
-      const amount = parseBigintAmount(options.amount);
+      const amount = parseAmount(options.amount, "--amount");
       const processorOptions = resolveProcessorOptions(globals);
       const manager = await loadRoleSigner("manager", options.managerKeypair);
 

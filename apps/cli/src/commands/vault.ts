@@ -1,6 +1,5 @@
 import type { Command } from "commander";
 import {
-  asAddress,
   buildAcceptVaultAdminOperation,
   buildAddAdaptorOperation,
   buildCancelRequestWithdrawVaultOperation,
@@ -16,7 +15,6 @@ import {
   buildUpdateVaultConfigOperation,
   buildWithdrawVaultOperation,
   generateKeyPairSigner,
-  parseBigintAmount,
   parseVaultConfigField,
   processOperation,
   queryStrategyPositions,
@@ -41,32 +39,16 @@ import {
 import { KAMINO_ADAPTOR_PROGRAM_ID } from "@voltr/scripts-kamino";
 import { CliError } from "../lib/errors.js";
 import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
+import { parseAddress, parseAmount, parseU16 } from "../lib/parse.js";
 import { loadRoleSigner } from "../lib/signers.js";
 import { printJson, printLine } from "../lib/output.js";
 
 // --- flag coercion helpers ---
-
-/** Parse a raw u64 flag (smallest units / seconds), as a CliError on bad input. */
-function parseRawU64(value: string, flag: string): bigint {
-  if (!/^\d+$/.test(value)) {
-    throw new CliError(
-      `${flag} must be a non-negative integer in smallest units: ${value}`
-    );
-  }
-  return BigInt(value);
-}
-
-/** Parse a raw u16 flag (0..65535), e.g. a fee in basis points. */
-function parseRawU16(value: string, flag: string): number {
-  if (!/^\d+$/.test(value)) {
-    throw new CliError(`${flag} must be a non-negative integer: ${value}`);
-  }
-  const parsed = Number(value);
-  if (parsed > 65_535) {
-    throw new CliError(`${flag} must be a u16 in the range 0..65535: ${value}`);
-  }
-  return parsed;
-}
+//
+// Amounts (`parseAmount`), bounded u16 values (`parseU16`), and addresses
+// (`parseAddress`) come from the shared `lib/parse.ts`. Only the vault-specific
+// `--discriminator` parser lives here, since `vault:init-direct-withdraw` is its
+// sole caller.
 
 /**
  * Parse a `--discriminator` flag: exactly 8 comma-separated bytes, each 0..255.
@@ -97,11 +79,11 @@ function coerceConfigValue(
 ): bigint | number | Address {
   switch (vaultConfigFieldKind(field)) {
     case "u64":
-      return parseRawU64(raw, "--value");
+      return parseAmount(raw, "--value");
     case "u16":
-      return parseRawU16(raw, "--value");
+      return parseU16(raw, "--value");
     case "address":
-      return asAddress(raw, "--value");
+      return parseAddress(raw, "--value");
   }
 }
 
@@ -129,7 +111,7 @@ function parseWithdrawAmountOptions(options: WithdrawAmountOptions): {
   isWithdrawAll: boolean;
 } {
   return {
-    amount: parseBigintAmount(options.amount),
+    amount: parseAmount(options.amount, "--amount"),
     isAmountInLp: Boolean(options.inLp),
     isWithdrawAll: Boolean(options.all),
   };
@@ -218,35 +200,35 @@ interface ParsedInit {
 
 function parseInitConfigOptions(options: InitConfigOptions): ParsedInit {
   return {
-    manager: asAddress(options.manager, "--manager"),
+    manager: parseAddress(options.manager, "--manager"),
     name: options.name,
     description: options.description,
     config: {
-      maxCap: parseRawU64(options.maxCap, "--max-cap"),
-      startAtTs: parseRawU64(options.startAtTs, "--start-at-ts"),
-      managerPerformanceFee: parseRawU16(
+      maxCap: parseAmount(options.maxCap, "--max-cap"),
+      startAtTs: parseAmount(options.startAtTs, "--start-at-ts"),
+      managerPerformanceFee: parseU16(
         options.managerPerformanceFee,
         "--manager-performance-fee"
       ),
-      adminPerformanceFee: parseRawU16(
+      adminPerformanceFee: parseU16(
         options.adminPerformanceFee,
         "--admin-performance-fee"
       ),
-      managerManagementFee: parseRawU16(
+      managerManagementFee: parseU16(
         options.managerManagementFee,
         "--manager-management-fee"
       ),
-      adminManagementFee: parseRawU16(
+      adminManagementFee: parseU16(
         options.adminManagementFee,
         "--admin-management-fee"
       ),
-      lockedProfitDegradationDuration: parseRawU64(
+      lockedProfitDegradationDuration: parseAmount(
         options.lockedProfitDegradationDuration,
         "--locked-profit-degradation-duration"
       ),
-      redemptionFee: parseRawU16(options.redemptionFee, "--redemption-fee"),
-      issuanceFee: parseRawU16(options.issuanceFee, "--issuance-fee"),
-      withdrawalWaitingPeriod: parseRawU64(
+      redemptionFee: parseU16(options.redemptionFee, "--redemption-fee"),
+      issuanceFee: parseU16(options.issuanceFee, "--issuance-fee"),
+      withdrawalWaitingPeriod: parseAmount(
         options.withdrawalWaitingPeriod,
         "--withdrawal-waiting-period"
       ),
@@ -553,7 +535,7 @@ function registerAdminVaultCommands(program: Command): void {
       const lookupTableAddresses = resolveLookupTableAddresses(profile, {
         command,
       });
-      const manager = asAddress(options.manager, "--manager");
+      const manager = parseAddress(options.manager, "--manager");
       const processorOptions = resolveProcessorOptions(globals);
       const admin = await loadRoleSigner("admin", options.adminKeypair);
 
@@ -597,7 +579,7 @@ function registerUserVaultCommands(program: Command): void {
       const lookupTableAddresses = resolveLookupTableAddresses(profile, {
         command,
       });
-      const amount = parseBigintAmount(options.amount);
+      const amount = parseAmount(options.amount, "--amount");
       const processorOptions = resolveProcessorOptions(globals);
       const user = await loadRoleSigner("user", options.userKeypair);
 
@@ -804,7 +786,7 @@ function registerVaultQueryCommands(program: Command): void {
 
       const { profile, ctx } = await loadCommandContext(program);
       const vault = requireVaultAddress(profile, { command });
-      const user = asAddress(options.user, "--user");
+      const user = parseAddress(options.user, "--user");
 
       const snapshot = await queryVaultPosition(ctx, { user, vault });
       printJson(snapshot);
@@ -888,7 +870,7 @@ function registerAdaptorToggle(
           command,
         });
         const adaptorProgram = options.adaptorProgram
-          ? asAddress(options.adaptorProgram, "--adaptor-program")
+          ? parseAddress(options.adaptorProgram, "--adaptor-program")
           : KAMINO_ADAPTOR_PROGRAM_ID;
         const processorOptions = resolveProcessorOptions(globals);
         const admin = await loadRoleSigner("admin", options.adminKeypair);
@@ -970,10 +952,10 @@ function registerAdaptorAdminCommands(program: Command): void {
           command,
         });
         const strategy = options.strategy
-          ? asAddress(options.strategy, "--strategy")
+          ? parseAddress(options.strategy, "--strategy")
           : requireKaminoKvault(profile, { command });
         const adaptorProgram = options.adaptorProgram
-          ? asAddress(options.adaptorProgram, "--adaptor-program")
+          ? parseAddress(options.adaptorProgram, "--adaptor-program")
           : KAMINO_ADAPTOR_PROGRAM_ID;
         if (options.adaptorProgram && !options.discriminator) {
           throw new CliError(
