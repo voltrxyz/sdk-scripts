@@ -221,6 +221,7 @@ Default to `@solana/kit` and `@solana-program/*` throughout. Some upstream SDKs 
    - Hand the result to `processOperation({ ctx, payer, operation, mode })`.
 6. **Update profile schema if needed.** Add the new field under `integrations.<adapter>` in `configs/examples/*.json` and extend `ScriptProfile` in `packages/core/src/types.ts`.
 7. **For queries**, skip the processor entirely — print `JSON.stringify(await query<X>(ctx, args), null, 2)` from the CLI command.
+8. **Add a builder test.** Each adapter ships a stub smoke test next to its builder (e.g. `packages/kamino/src/operations/deposit-market.test.ts`) that currently asserts "not migrated yet". Replace it with an output-shape check using `createFakeScriptContext` + `assertBuiltOperationShape` from `@voltr/scripts-core/testing`. Tests run offline (no RPC, no keypairs) and are auto-discovered by `pnpm test`. See [testing.md](./testing.md).
 
 ### Worked example (transaction)
 

@@ -34,6 +34,7 @@ docs/
 
 - **[docs/architecture.md](./docs/architecture.md)** — read this first. Defines package responsibilities, the operation-builder contract, command naming, query vs transaction commands, web3.js isolation, where operational values live, and the step-by-step recipe for adding a new operation.
 - **[docs/migration-plan.md](./docs/migration-plan.md)** — which legacy scripts to port, in what order.
+- **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, and how to add adapter builder tests.
 
 ## First commands
 
@@ -64,6 +65,20 @@ RPC_URL="https://your-rpc" pnpm cli -- \
   --user-keypair /path/to/user.json \
   --amount 1000000
 ```
+
+## Checks before opening a PR
+
+All checks are offline — no RPC URL, no keypair files, no build step:
+
+```bash
+pnpm typecheck   # type-checks every package + app, including test files
+pnpm test        # runs all *.test.ts with the Node test runner
+pnpm check       # typecheck + build + test (the CI-ready gate)
+```
+
+Run `pnpm check` before opening a PR. See **[docs/testing.md](./docs/testing.md)**
+for what is covered, the offline guarantee, and how to add a builder test for a
+newly migrated operation.
 
 ## Profiles
 

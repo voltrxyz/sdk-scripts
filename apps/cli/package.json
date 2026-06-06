@@ -8,8 +8,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "tsx src/index.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "dev": "TSX_TSCONFIG_PATH=../../tsconfig.check.json tsx src/index.ts"
   },
   "dependencies": {
     "@voltr/scripts-core": "workspace:*",
