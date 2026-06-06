@@ -76,22 +76,23 @@ Each adapter is an independent migration. Adapter packages do not import each ot
 
 Reference: `/Users/shayn/Desktop/voltr/voltr-kamino-scripts/src/scripts/`. Target package: `packages/kamino/src/operations/`.
 
-Good first migration: `manager-deposit-market.ts` → `kamino:market:deposit` (placeholder exists in `packages/kamino/src/operations/deposit-market.ts`).
+Operation builders are **migrated (VOL-225)** — see
+[kamino-migration.md](./kamino-migration.md) for the full old-script → builder
+map, shared-module layout, and deferral reasons. CLI wiring is still pending.
 
-Then, in any order:
-
-- `manager-initialize-market.ts` → `kamino:market:init`
-- `manager-withdraw-market.ts` → `kamino:market:withdraw`
-- `manager-initialize-kvault.ts` → `kamino:kvault:init`
-- `manager-deposit-kvault.ts` → `kamino:kvault:deposit`
-- `manager-withdraw-kvault.ts` → `kamino:kvault:withdraw`
-- `manager-claim-market-reward[-with-index].ts` → `kamino:market:claim-reward`
-- `manager-claim-kvault-rewards[-with-index].ts` → `kamino:kvault:claim-rewards`
-- `admin-add-adaptor.ts` → `kamino:admin:add-adaptor`
-- `admin-init-direct-withdraw.ts` → `kamino:admin:init-direct-withdraw`
-- `user-direct-withdraw-strategy.ts` → `kamino:user:direct-withdraw`
-- `user-request-and-direct-withdraw-strategy.ts` → `kamino:user:request-and-direct-withdraw`
-- `query-strategy-positions.ts` → `kamino:query:strategy-positions` (query)
+- `manager-deposit-market.ts` → `kamino:market:deposit` — done (replaced the placeholder)
+- `manager-initialize-market.ts` → `kamino:market:init` — done
+- `manager-withdraw-market.ts` → `kamino:market:withdraw` — done
+- `manager-initialize-kvault.ts` → `kamino:kvault:init` — done
+- `manager-deposit-kvault.ts` → `kamino:kvault:deposit` — done
+- `manager-withdraw-kvault.ts` → `kamino:kvault:withdraw` — done
+- `manager-claim-market-reward[-with-index].ts` → `kamino:market:claim-reward` — done (index optional)
+- `manager-claim-kvault-rewards[-with-index].ts` → `kamino:kvault:claim-rewards` — done (index optional)
+- `user-direct-withdraw-strategy.ts` → `kamino:user:direct-withdraw` — done
+- `user-request-and-direct-withdraw-strategy.ts` → `kamino:user:request-and-direct-withdraw` — done
+- `admin-add-adaptor.ts` → `kamino:admin:add-adaptor` — deferred to VOL-224
+- `admin-init-direct-withdraw.ts` → `kamino:admin:init-direct-withdraw` — deferred to VOL-224
+- `query-strategy-positions.ts` → `kamino:query:strategy-positions` (query) — not in VOL-225 scope
 
 ### Spot (done — VOL-226)
 

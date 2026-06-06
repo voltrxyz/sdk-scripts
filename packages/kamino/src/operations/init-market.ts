@@ -1,8 +1,7 @@
 import type { AccountMeta, Address, Instruction, KeyPairSigner } from "@solana/kit";
-import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import {
   findVaultStrategyAuthPda,
-  getDepositStrategyInstructionAsync,
+  getInitializeStrategyInstructionAsync,
 } from "@voltr/vault-sdk";
 import {
   setupTokenAccount,
@@ -15,31 +14,28 @@ import {
   KAMINO_ADAPTOR_PROGRAM_ID,
   KAMINO_DISCRIMINATOR,
   KLEND_PROGRAM_ID,
-  SYSTEM_PROGRAM_ID,
-  SYSVAR_INSTRUCTIONS_ADDRESS,
   SYSVAR_RENT_ADDRESS,
 } from "../constants.js";
 import { loadMarketReserveAccounts } from "../reserve.js";
 
-export interface KaminoMarketDepositArgs {
+export interface KaminoMarketInitArgs {
+  /** Manager keypair; also pays for ATA creation and the strategy receipt. */
   manager: KeyPairSigner;
   vault: Address;
   assetMint: Address;
   assetTokenProgram: Address;
   /** klend reserve the strategy lends into; used as the Voltr strategy id. */
   reserve: Address;
-  /** Raw asset amount in smallest units. */
-  amount: bigint;
   lookupTableAddresses?: Address[];
 }
 
 /**
- * `kamino:market:deposit` — deposit vault assets into a klend reserve via the
- * Voltr Kamino adaptor. Ports `manager-deposit-market.ts`.
+ * `kamino:market:init` — initialize a Voltr strategy backed by a klend reserve.
+ * Ports `manager-initialize-market.ts`.
  */
-export async function buildKaminoMarketDepositOperation(
+export async function buildKaminoMarketInitOperation(
   ctx: ScriptContext,
-  args: KaminoMarketDepositArgs
+  args: KaminoMarketInitArgs
 ): Promise<BuiltOperation> {
   const strategy = args.reserve;
   const [vaultStrategyAuth] = await findVaultStrategyAuthPda({
@@ -56,6 +52,14 @@ export async function buildKaminoMarketDepositOperation(
     instructions,
     tokenProgram: args.assetTokenProgram,
   });
+  await setupTokenAccount({
+    rpc: ctx.rpc,
+    payer: args.manager,
+    mint: args.assetMint,
+    owner: args.manager.address,
+    instructions,
+    tokenProgram: args.assetTokenProgram,
+  });
 
   const reserve = await loadMarketReserveAccounts(ctx.rpc, {
     reserve: args.reserve,
@@ -63,42 +67,33 @@ export async function buildKaminoMarketDepositOperation(
   });
 
   const remaining: AccountMeta[] = [
+    writableAccount(reserve.userMetadata),
     writableAccount(reserve.obligation),
-    readonlyAccount(reserve.lendingMarket),
     readonlyAccount(reserve.lendingMarketAuthority),
     writableAccount(args.reserve),
-    writableAccount(reserve.reserveLiquiditySupply),
-    writableAccount(reserve.reserveCollateralMint),
-    writableAccount(reserve.reserveCollateralSupplyVault),
-    readonlyAccount(TOKEN_PROGRAM_ADDRESS),
-    readonlyAccount(SYSVAR_INSTRUCTIONS_ADDRESS),
-    writableAccount(reserve.obligationFarm),
     writableAccount(reserve.reserveFarmState),
-    writableAccount(reserve.userMetadata),
-    readonlyAccount(reserve.scope),
-    readonlyAccount(SYSVAR_RENT_ADDRESS),
-    readonlyAccount(SYSTEM_PROGRAM_ID),
+    writableAccount(reserve.obligationFarm),
+    readonlyAccount(reserve.lendingMarket),
     readonlyAccount(FARMS_PROGRAM_ID),
+    readonlyAccount(SYSVAR_RENT_ADDRESS),
     readonlyAccount(KLEND_PROGRAM_ID),
   ];
 
-  const depositIx = await getDepositStrategyInstructionAsync({
+  const initIx = await getInitializeStrategyInstructionAsync({
+    payer: args.manager,
     manager: args.manager,
     vault: args.vault,
     strategy,
-    vaultAssetMint: args.assetMint,
-    assetTokenProgram: args.assetTokenProgram,
     adaptorProgram: KAMINO_ADAPTOR_PROGRAM_ID,
-    amount: args.amount,
     instructionDiscriminator: new Uint8Array(
-      KAMINO_DISCRIMINATOR.DEPOSIT_MARKET
+      KAMINO_DISCRIMINATOR.INITIALIZE_MARKET
     ),
     additionalArgs: null,
   });
-  instructions.push(withRemainingAccounts(depositIx, remaining));
+  instructions.push(withRemainingAccounts(initIx, remaining));
 
   return {
-    label: "kamino:market:deposit",
+    label: "kamino:market:init",
     instructions,
     lookupTableAddresses: args.lookupTableAddresses,
   };
