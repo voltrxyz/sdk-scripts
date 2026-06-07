@@ -65,11 +65,10 @@ export interface SpotEarnExtendLutArgs {
 /**
  * `spot:earn:init` — initialize a Jupiter Earn (lending) strategy. The strategy
  * address is the Jupiter `lending` PDA. Creates the strategy auth's asset and
- * fToken token accounts.
+ * fToken token accounts. The manager signs and pays.
  *
- * Migrated from `manager-initialize-earn.ts` (first transaction only). The legacy
- * script's optional second transaction — pre-loading the lookup table — is its
- * own operation here: {@link buildSpotEarnExtendLutOperation}.
+ * This builds only the initialization transaction. Optionally pre-loading the
+ * lookup table afterwards is its own operation: {@link buildSpotEarnExtendLutOperation}.
  */
 export async function buildSpotEarnInitOperation(
   ctx: ScriptContext,
@@ -122,9 +121,7 @@ export async function buildSpotEarnInitOperation(
 
 /**
  * `spot:earn:deposit` — deposit `amount` of the vault asset into the Jupiter
- * Earn strategy.
- *
- * Migrated from `manager-deposit-earn.ts`.
+ * Earn strategy. The manager signs.
  */
 export async function buildSpotEarnDepositOperation(
   ctx: ScriptContext,
@@ -179,8 +176,7 @@ export async function buildSpotEarnDepositOperation(
 /**
  * `spot:earn:withdraw` — withdraw `amount` of the vault asset from the Jupiter
  * Earn strategy. Mirrors the deposit account layout plus the `userClaim` PDA.
- *
- * Migrated from `manager-withdraw-earn.ts`.
+ * The manager signs.
  */
 export async function buildSpotEarnWithdrawOperation(
   ctx: ScriptContext,
@@ -238,9 +234,8 @@ export async function buildSpotEarnWithdrawOperation(
 /**
  * `spot:earn:extend-lut` — extend an existing lookup table with every account
  * the Earn strategy's init/deposit/withdraw transactions touch, so they fit
- * within transaction size limits. Already-present addresses are skipped.
- *
- * Migrated from the second (optional) transaction of `manager-initialize-earn.ts`.
+ * within transaction size limits. Already-present addresses are skipped. Run it
+ * after `spot:earn:init` when the vault uses a lookup table.
  */
 export async function buildSpotEarnExtendLutOperation(
   ctx: ScriptContext,
@@ -301,9 +296,8 @@ export interface SpotEarnInitDirectWithdrawArgs {
   assetMint: Address;
   /**
    * The adaptor instruction the direct-withdraw flow invokes, as an 8-byte
-   * discriminator. Per-deployment value (the legacy `directWithdrawDiscriminator`
-   * config); not one of the fixed Spot `SPOT_DISCRIMINATOR` entries, so it is passed
-   * in rather than hardcoded.
+   * discriminator. A per-deployment value, not one of the fixed Spot
+   * `SPOT_DISCRIMINATOR` entries, so it is passed in rather than hardcoded.
    */
   instructionDiscriminator: ReadonlyUint8Array | readonly number[];
   additionalArgs?: ReadonlyUint8Array | null;
@@ -313,8 +307,7 @@ export interface SpotEarnInitDirectWithdrawArgs {
 
 /**
  * `spot:earn:init-direct-withdraw` — register the Jupiter Earn strategy as a
- * direct-withdraw strategy on the vault. Ports `admin-init-direct-withdraw.ts`
- * (Spot).
+ * direct-withdraw strategy on the vault. The admin signs.
  *
  * The only Spot-specific step is deriving the strategy — the Jupiter `lending`
  * PDA for the vault asset. Everything else is generic, so this delegates to the

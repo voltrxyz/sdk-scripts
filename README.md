@@ -1,17 +1,19 @@
 # Voltr Integration Scripts
 
-Workspace for shared Voltr vault scripts plus thin adapter-specific integrations.
+The canonical workspace for operating Voltr vaults and their protocol
+integrations from one command-line tool. It pairs a shared vault core with thin,
+per-protocol adapter packages and a single CLI, so every operation is built the
+same way and driven by JSON profiles and flags rather than edited source.
 
-This repo replaces the fork-per-integration shape used by:
+- **One CLI** (`apps/cli`) exposes every operation as a `<group>:<action>` command.
+- **Shared vault behavior** — signers, RPC, token accounts, lookup tables,
+  transaction modes — lives in `packages/core`.
+- **Each integration** (Kamino, Spot, Trustful) is an adapter package that owns
+  only its protocol-specific account derivation and instruction builders.
 
-- `/Users/shayn/Desktop/voltr/voltr-base-scripts`
-- `/Users/shayn/Desktop/voltr/voltr-trustful-scripts`
-- `/Users/shayn/Desktop/voltr/voltr-kamino-scripts`
-- `/Users/shayn/Desktop/voltr/voltr-spot-scripts`
-
-Those repos remain on disk as **migration references only** — do not edit them for ongoing operations.
-
-Common vault, signer, token-account, LUT, and transaction behavior lives in `packages/core`. Each adapter package owns only its protocol-specific account derivation and instruction builders.
+Operational values (vault address, asset mint, strategy addresses) come from JSON
+profiles under `configs/`; per-call values (amounts, signer paths, slippage) come
+from CLI flags. Source files are never edited to change runtime values.
 
 ## Layout
 
@@ -31,22 +33,26 @@ configs/
   examples/            # JSON profile examples
 docs/
   architecture.md      # Package responsibilities + operation-builder contract
-  migration-plan.md    # Migration order from the old repos
+  operator-guide.md    # Profiles, modes, and runnable recipes per integration
 ```
 
 ## Documentation
 
 **Operators start here:**
 
-- **[docs/parity-matrix.md](./docs/parity-matrix.md)** — every legacy script in the four old repos mapped to its new builder + CLI command, with migration status and behavior-difference notes. The consolidated old-to-new index.
-- **[docs/migration-recipes.md](./docs/migration-recipes.md)** — the operator playbook: profile creation, keypair/RPC handling, transaction modes (`print` / `simulate` / `multisig` / `execute`), and runnable recipes for every common flow plus a one-example-per-command reference.
+- **[docs/operator-guide.md](./docs/operator-guide.md)** — the operator playbook: profile creation, keypair/RPC handling, transaction modes (`print` / `simulate` / `multisig` / `execute`), and runnable recipes for every common flow plus a one-example-per-command reference.
+
+**Per-integration references:**
+
+- **[docs/kamino.md](./docs/kamino.md)** — Kamino market and kvault strategies, reward claims, and the klend-sdk decode boundary.
+- **[docs/spot.md](./docs/spot.md)** — Spot swap and Jupiter Earn strategies.
+- **[docs/trustful.md](./docs/trustful.md)** — Trustful arbitrary and curve strategies.
+- **[docs/adaptor-admin.md](./docs/adaptor-admin.md)** — vault-level adaptor administration (add/remove adaptor, init direct-withdraw).
 
 **Contributors / reference:**
 
-- **[docs/architecture.md](./docs/architecture.md)** — read this first. Defines package responsibilities, the operation-builder contract, command naming, query vs transaction commands, web3.js isolation, where operational values live, and the step-by-step recipe for adding a new operation.
-- **[docs/migration-plan.md](./docs/migration-plan.md)** — which legacy scripts to port, in what order.
-- **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, and how to add adapter builder tests.
-- **[docs/kamino-migration.md](./docs/kamino-migration.md)** — migration map from legacy Kamino scripts to builders and CLI commands.
+- **[docs/architecture.md](./docs/architecture.md)** — read this first. Defines package responsibilities, the operation-builder contract, command naming, query vs transaction commands, the web3.js compatibility boundary, where operational values live, and the step-by-step recipe for adding a new operation or integration.
+- **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, how to add adapter builder tests, and the terminology guard.
 
 ## First commands
 
@@ -128,8 +134,9 @@ pnpm cli -- --profile configs/my-vault.json \
 pnpm cli -- --profile configs/my-vault.json check
 ```
 
-The `vault:*`, `spot:*`, and `trustful:*` builders are migrated. The
-`kamino:*` builders are migrated too; see [Kamino commands](#kamino-commands).
+Each group is documented below: [vault](#vault-commands),
+[kamino](#kamino-commands), [spot](#spot-commands), and
+[trustful](#trustful-commands).
 
 ### Vault commands
 
@@ -187,8 +194,8 @@ which derives the strategy and adaptor program for you. See
 
 #### Vault lifecycle flow
 
-The new-CLI equivalent of the old `voltr-base-scripts` "Basic Usage Flow"
-(editing `config/base.ts` before each run is replaced by a profile + flags):
+A full vault lifecycle, from initialization to withdrawal (a profile plus flags
+replaces editing any source config before a run):
 
 ```bash
 # 1. Create a profile for the vault asset (copy an example, then edit it):
@@ -358,8 +365,8 @@ RPC_URL="https://your-rpc" pnpm cli -- \
 
 Before the manager can route through Spot, the admin must register the adaptor
 once with `vault:add-adaptor --adaptor-program <SPOT_ADAPTOR_PROGRAM_ID>` (see the
-[Vault commands](#vault-commands) table). The full old-script → command map is in
-[docs/spot-migration.md](./docs/spot-migration.md).
+[Vault commands](#vault-commands) table). See [docs/spot.md](./docs/spot.md) for
+the full Spot integration reference.
 
 ### Trustful commands
 
@@ -384,8 +391,7 @@ The arbitrary strategy is named by `integrations.trustful.strategySeedString`;
 the curve strategy is a singleton seeded by the adaptor's fixed `"curve"`
 constant, so the curve commands take no seed flag. `trustful:arbitrary:deposit`
 prints the **withdrawal-holding account** you must return strategy assets to
-before running `trustful:arbitrary:withdraw` (preserved from the old deposit
-script's output).
+before running `trustful:arbitrary:withdraw` (returned as operation metadata).
 
 Registering the Trustful adaptor on a vault is a one-time admin step using the
 generic `vault:add-adaptor` command with the Trustful adaptor program id
@@ -410,9 +416,8 @@ RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
   trustful:curve:borrow --amount 1000000 --borrow-rate-bps 50
 ```
 
-Each old `voltr-trustful-scripts` script maps to one new command — see
-[packages/trustful/MIGRATION.md](./packages/trustful/MIGRATION.md) for the full
-script → builder → command map.
+See [docs/trustful.md](./docs/trustful.md) for the full Trustful integration
+reference.
 
 ### Global options
 
@@ -436,13 +441,13 @@ All checks are offline — no RPC URL, no keypair files, no build step:
 
 ```bash
 pnpm typecheck   # type-checks every package + app, including test files
-pnpm test        # runs all *.test.ts with the Node test runner
+pnpm test        # runs all *.test.ts + the terminology guard (node:test)
 pnpm check       # typecheck + build + test (the CI-ready gate)
 ```
 
 Run `pnpm check` before opening a PR. See **[docs/testing.md](./docs/testing.md)**
-for what is covered, the offline guarantee, and how to add a builder test for a
-newly migrated operation.
+for what is covered, the offline guarantee, the terminology guard, and how to add
+a builder test for a new operation.
 
 ## Profiles
 
@@ -534,6 +539,6 @@ The full rules live in [docs/architecture.md](./docs/architecture.md). The short
 - Operation builders return a `BuiltOperation` (`label`, `instructions`, optional `lookupTableAddresses`, optional `computeUnitLimit`). They do not read files, parse CLI flags, send transactions, or read `ctx.profile`.
 - CLI commands parse argv, load signers and profiles, coerce values, call the builder, and hand the result to `processOperation`.
 - Routine operational values (vault address, asset mint, LUTs, strategy seeds) live in JSON profiles under `configs/`. Per-call values (amounts, signer paths, slippage) come from CLI flags. TypeScript source files are not edited to change runtime values.
-- `packages/core` owns signer/RPC/LUT/send behavior and must not depend on `@solana/web3.js`. Adapter packages that depend on legacy SDKs convert at the boundary using `packages/core/src/interop/web3-kit.ts`; no web3.js type escapes a builder.
+- `packages/core` owns signer/RPC/LUT/send behavior and must not depend on `@solana/web3.js`. Adapter packages that depend on such SDKs convert at the web3.js compatibility boundary using `packages/core/src/interop/web3-kit.ts`; no web3.js type escapes a builder.
 - New execution modes (`simulate`, `multisig`) are added once in `packages/core/src/tx/processor.ts`, not per adapter.
-- Adapter packages do not import each other; Kamino, Spot, and Trustful migrations are independent workstreams.
+- Adapter packages do not import each other; Kamino, Spot, and Trustful are independent.

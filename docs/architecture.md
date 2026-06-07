@@ -1,12 +1,12 @@
 # Architecture and Operation-Builder Contract
 
-This document is the canonical spec for adding operation builders and CLI commands in this repo. **Read it before adding a new migration.**
+This document is the canonical spec for adding operation builders and CLI commands in this repo. **Read it before adding a new integration or operation.**
 
-The migration order — which legacy scripts to port first, and in what sequence — lives in [migration-plan.md](./migration-plan.md). This document defines *how* a migration should be shaped, not *which* one comes next.
+It defines *how* an operation builder, query, profile section, or CLI command is shaped. For an end-to-end walkthrough, see [How to add a new operation builder + CLI command](#how-to-add-a-new-operation-builder--cli-command); for a brand-new integration package, see [Template: adding a new integration](#template-adding-a-new-integration-x).
 
 ## Goals
 
-The repo replaces the four legacy fork-per-integration repos with a single workspace that:
+A single workspace that operates Voltr vaults and their protocol integrations:
 
 - keeps shared vault, signer, RPC, LUT, and transaction behavior in one place (`packages/core`);
 - isolates protocol-specific account derivation and instruction building in adapter packages (`packages/kamino`, `packages/spot`, `packages/trustful`);
@@ -21,7 +21,7 @@ packages/kamino/       # Kamino-specific operation builders + queries
 packages/spot/         # Spot/Jupiter-specific operation builders + queries
 packages/trustful/     # Trustful-specific operation builders + queries
 configs/examples/      # JSON profile examples
-docs/                  # Architecture + migration plan
+docs/                  # Architecture contract + per-integration references
 ```
 
 ## Package responsibilities
@@ -89,8 +89,7 @@ The CLI must stay thin. Each command is "parse flags → coerce values → call 
 ## Adapter package standard
 
 All three adapter packages (`kamino`, `spot`, `trustful`) follow one layout and
-naming convention so adding a new integration is a predictable copy. This is the
-standard converged on in VOL-234.
+naming convention so adding a new integration is a predictable copy.
 
 ### Directory layout
 
@@ -149,7 +148,7 @@ Do not reimplement these per adapter:
 - `withRemainingAccounts(ix, metas)` — append kit-native remaining accounts.
 - `encodeU64Le(bigint)`, `encodeU16Le(number)` — little-endian integer bytes.
 - `setupTokenAccount`, LUT, signer, and tx helpers (see "Package responsibilities").
-- web3.js → kit conversion at a legacy-SDK boundary via `interop/web3-kit.ts`
+- web3.js → kit conversion at the web3.js compatibility boundary via `interop/web3-kit.ts`
   (`publicKeyToAddress`, `kitAccountMetaFromWeb3`, `appendRemainingAccounts`).
 
 ### Exports and tests
@@ -240,24 +239,6 @@ Rules:
 - For queries, the literal segment `query` marks the command as side-effect free. The noun that follows describes what is read (`position`, `reserve`, `strategy-positions`, `oracle`).
 - The builder's `label` field MUST equal the command name. The CLI command name and the builder label are the same string.
 
-### Command renames (VOL-235)
-
-The first integration CLIs landed with three naming divergences, corrected during
-the VOL-235 standardization. These commands had not shipped to operators, so the
-old names were removed outright rather than aliased:
-
-| Old command | New command |
-| ----------- | ----------- |
-| `spot:spot:init` / `spot:spot:buy` / `spot:spot:sell` | `spot:swap:init` / `spot:swap:buy` / `spot:swap:sell` |
-| `kamino:kvault:claim-rewards[-with-index]` | `kamino:kvault:claim-reward[-with-index]` |
-| `kamino:user:direct-withdraw` | `kamino:kvault:direct-withdraw` |
-| `kamino:user:request-and-direct-withdraw` | `kamino:kvault:request-and-direct-withdraw` |
-
-The matching builders, args interfaces, and `BuiltOperation.label`s were renamed
-in lockstep (`buildSpotSwapBuyOperation`, `buildKaminoKvaultClaimRewardOperation`,
-`buildKaminoKvaultDirectWithdrawOperation`, …) so command name == label still
-holds.
-
 ## Query vs transaction commands
 
 **Transactional commands**
@@ -290,7 +271,7 @@ export async function queryKaminoReserve(
 ): Promise<KaminoReserveSnapshot> { /* ... */ }
 ```
 
-## web3.js isolation
+## web3.js compatibility boundary
 
 Default to `@solana/kit` and `@solana-program/*` throughout. Some upstream SDKs (e.g. `@kamino-finance/klend-sdk`, Anchor-generated IDL clients) still produce `@solana/web3.js` `TransactionInstruction` and `PublicKey` values. Handle them like this:
 
@@ -308,7 +289,7 @@ Default to `@solana/kit` and `@solana-program/*` throughout. Some upstream SDKs 
   };
   ```
 
-- `packages/core` MUST NOT depend on `@solana/web3.js`. Only adapter packages that need a legacy SDK declare that dependency (in their own `package.json`).
+- `packages/core` MUST NOT depend on `@solana/web3.js`. Only adapter packages that need such an SDK declare that dependency (in their own `package.json`).
 - A web3 type MUST NOT escape a builder. The `BuiltOperation` returned to the CLI is 100% kit.
 - If a new interop helper is needed by more than one adapter, add it to `packages/core/src/interop/web3-kit.ts` rather than duplicating it.
 
@@ -317,36 +298,29 @@ Default to `@solana/kit` and `@solana-program/*` throughout. Some upstream SDKs 
 - **JSON profiles (`configs/*.json`)** hold per-deployment values: vault address, asset mint, asset token program, LUT address, strategy reserve addresses, oracle addresses, strategy seed strings. Add new integration fields under `integrations.<adapter>` in the profile and extend `ScriptProfile` in `packages/core/src/types.ts`.
 - **CLI flags** hold per-call values: signer paths (`--user-keypair`, `--manager-keypair`, `--admin-keypair`), amounts, slippage, mode.
 - **`.env` / `--rpc-url`** holds the RPC endpoint (`RPC_URL` or `HELIUS_RPC_URL`) and may hold default keypair paths used by developer workflows.
-- **TypeScript source files MUST NOT be edited to change runtime values.** If a value changes per-environment or per-deployment, it belongs in a profile or a flag. This is the rule that justifies the entire migration — the old repos required swapping addresses at the top of a `.ts` file before each run.
+- **TypeScript source files MUST NOT be edited to change runtime values.** If a value changes per-environment or per-deployment, it belongs in a profile or a flag. Operators change behavior through profiles and flags, never by editing source.
 
 ## How to add a new operation builder + CLI command
 
-1. **Find the source script** in the legacy repo. Reference paths (read-only):
-   - `/Users/shayn/Desktop/voltr/voltr-base-scripts/src/scripts/`
-   - `/Users/shayn/Desktop/voltr/voltr-kamino-scripts/src/scripts/`
-   - `/Users/shayn/Desktop/voltr/voltr-spot-scripts/src/scripts/`
-   - `/Users/shayn/Desktop/voltr/voltr-trustful-scripts/src/scripts/`
-
-   These are migration references only. Do not edit them as part of migration work.
-2. **Decide the package.**
+1. **Decide the package.**
    - Vault-level (no adapter SDK) → `packages/core/src/vault/<name>.ts`.
    - Adapter-specific → `packages/<adapter>/src/operations/<domain>.ts` (grouped by strategy domain).
    - Read-only → `packages/<scope>/src/queries/<name>.ts`.
-3. **Write the builder.** Follow the contract above:
+2. **Write the builder.** Follow the contract above:
    - Export `<X>Args` typed in kit terms.
    - Export `async function build<X>Operation(ctx, args): Promise<BuiltOperation>`.
    - Compose instructions; isolate any web3.js inside.
    - Set `label` to the eventual CLI command name (e.g. `"kamino:market:deposit"`).
-4. **Re-export from the package's `src/index.ts`.**
-5. **Add the CLI command** to the group's module, `apps/cli/src/commands/<group>.ts`, inside its `register<Group>Commands(program)` function (a new group means a new module + one `register` call in `index.ts`):
+3. **Re-export from the package's `src/index.ts`.**
+4. **Add the CLI command** to the group's module, `apps/cli/src/commands/<group>.ts`, inside its `register<Group>Commands(program)` function (a new group means a new module + one `register` call in `index.ts`):
    - Use commander to declare flags. One flag per builder arg that has no profile source. Make `--amount` and other per-call values `requiredOption`; declare the signer keypair with `addRoleKeypairOption(command, role)` (a plain `option` whose presence is enforced later by `loadRoleSigner`, so the env-var fallback works and the wording stays identical across commands).
    - Load the profile and context with `loadCommandContext(program)`; pull profile values with the `require*` accessors; coerce flags with the shared parsers from `lib/parse.ts` (`parseAddress`, `parseAmount`, `parseBps`, `parseCount`, `parseIndex`, `parseU16`) — each names the flag in its `CliError`; load signers with `loadRoleSigner(role, flag)`.
    - Resolve `resolveProcessorOptions(globals)` before loading keypairs so an invalid `--mode`/priority-fee invocation fails fast.
    - Call the builder with `(ctx, args)`.
    - Hand the result to `processOperation({ ctx, payer, operation, mode, options })`.
-6. **Update profile schema if needed.** Add the new field under `integrations.<adapter>` in `configs/examples/*.json` and extend `ScriptProfile` in `packages/core/src/types.ts`.
-7. **For queries**, skip the processor entirely — print `JSON.stringify(await query<X>(ctx, args), null, 2)` from the CLI command.
-8. **Add a builder test.** Each adapter builder should have an offline smoke test next to it. For placeholders, assert the stub rejects clearly; for implemented builders, assert the output shape using `createFakeScriptContext` + `assertBuiltOperationShape` from `@voltr/scripts-core/testing`. Tests run offline (no RPC, no keypairs) and are auto-discovered by `pnpm test`. See [testing.md](./testing.md).
+5. **Update profile schema if needed.** Add the new field under `integrations.<adapter>` in `configs/examples/*.json` and extend `ScriptProfile` in `packages/core/src/types.ts`.
+6. **For queries**, skip the processor entirely — print `JSON.stringify(await query<X>(ctx, args), null, 2)` from the CLI command.
+7. **Add a builder test.** Each adapter builder should have an offline smoke test next to it that asserts the output shape using `createFakeScriptContext` + `assertBuiltOperationShape` from `@voltr/scripts-core/testing`. Builders that must decode on-chain state to derive accounts instead assert a clear failure when that state is absent. Tests run offline (no RPC, no keypairs) and are auto-discovered by `pnpm test`. See [testing.md](./testing.md).
 
 ### Worked example (transaction)
 
@@ -396,22 +370,11 @@ export function registerKaminoCommands(program: Command): void {
 }
 ```
 
-## Reference: legacy repos (read-only)
-
-| Repo                                                       | Purpose during migration                                |
-| ---------------------------------------------------------- | ------------------------------------------------------- |
-| `/Users/shayn/Desktop/voltr/voltr-base-scripts`            | Source for `vault:*` operations and shared utilities.   |
-| `/Users/shayn/Desktop/voltr/voltr-kamino-scripts`          | Source for `kamino:*` operations.                       |
-| `/Users/shayn/Desktop/voltr/voltr-spot-scripts`            | Source for `spot:*` operations.                         |
-| `/Users/shayn/Desktop/voltr/voltr-trustful-scripts`        | Source for `trustful:*` operations.                     |
-
-Do not edit those repos as part of migration work. Copy the logic out and adapt it to the contract in this document. Once an operation is migrated, the corresponding legacy script will be replaced with a thin wrapper or removed (see [migration-plan.md](./migration-plan.md)).
-
 ## Independence between adapters
 
-Migrating Kamino, Spot, and Trustful are independent workstreams:
+Kamino, Spot, and Trustful are independent:
 
 - Each adapter lives in its own `packages/<name>` directory and ships its own `package.json` with its own SDK dependencies.
 - None of the adapter packages import each other.
-- Shared changes go to `packages/core`. If two adapter migrations both require a new core helper, coordinate that change separately from the adapter work.
-- If a migration cannot be completed without changing shared code, prefer the smallest possible addition to `core` (a new helper, a new field on `ScriptProfile`) and avoid refactoring core types that would force the other adapters to change.
+- Shared changes go to `packages/core`. If two adapters both need a new core helper, coordinate that change separately from the adapter work.
+- When adapter work needs shared code, prefer the smallest possible addition to `core` (a new helper, a new field on `ScriptProfile`) and avoid refactoring core types that would force the other adapters to change.

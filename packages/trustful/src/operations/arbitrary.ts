@@ -28,7 +28,7 @@ export interface TrustfulArbitraryInitArgs {
 }
 
 /**
- * `trustful:arbitrary:init` — Migrated from `manager-initialize-arbitrary.ts`.
+ * `trustful:arbitrary:init` — initialize the arbitrary strategy.
  *
  * Creates the vault-strategy authority's asset ATA (if missing) and initializes
  * the arbitrary strategy via the vault SDK with the adaptor's
@@ -90,15 +90,14 @@ export interface TrustfulArbitraryDepositArgs {
 }
 
 /**
- * `trustful:arbitrary:deposit` — Migrated from `manager-deposit-arbitrary.ts`.
+ * `trustful:arbitrary:deposit` — deposit vault assets into the arbitrary strategy.
  *
  * Ensures the withdrawal-holding ATA and the vault-strategy ATA exist, then
  * deposits into the arbitrary strategy, forwarding `destinationAssetTokenAccount`
  * as a remaining account and the position value as the adaptor's `additional_args`.
  *
  * The withdrawal-holding account is returned as {@link BuiltOperation.metadata}
- * (the legacy script logged it as "transfer tokens back to …" so the manager
- * knows where to return strategy assets before withdrawing).
+ * so the manager knows where to return strategy assets before withdrawing.
  */
 export async function buildTrustfulArbitraryDepositOperation(
   ctx: ScriptContext,
@@ -168,7 +167,7 @@ export interface TrustfulArbitraryWithdrawArgs {
 }
 
 /**
- * `trustful:arbitrary:withdraw` — Migrated from `manager-withdraw-arbitrary.ts`.
+ * `trustful:arbitrary:withdraw` — withdraw vault assets from the arbitrary strategy.
  *
  * Ensures the withdrawal-holding ATA and vault-strategy ATA exist, then
  * withdraws from the arbitrary strategy. The withdrawal-holding authority and

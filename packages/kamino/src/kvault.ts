@@ -75,7 +75,7 @@ export async function loadKvaultReserves(
     });
   }
 
-  // Highest target-allocation-weight reserve, matching the legacy selection.
+  // Select the reserve with the highest target allocation weight.
   let maxIndex = -1;
   let maxWeight = 0n;
   allocations.forEach((allocation, index) => {

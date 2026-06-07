@@ -49,7 +49,7 @@ export interface KaminoMarketInitArgs {
 
 /**
  * `kamino:market:init` — initialize a Voltr strategy backed by a klend reserve.
- * Migrated from `manager-initialize-market.ts`.
+ * The manager signs and pays; the reserve address is the strategy id.
  */
 export async function buildKaminoMarketInitOperation(
   ctx: ScriptContext,
@@ -131,7 +131,7 @@ export interface KaminoMarketDepositArgs {
 
 /**
  * `kamino:market:deposit` — deposit vault assets into a klend reserve via the
- * Voltr Kamino adaptor. Migrated from `manager-deposit-market.ts`.
+ * Voltr Kamino adaptor. The manager signs; `amount` is the raw asset amount.
  */
 export async function buildKaminoMarketDepositOperation(
   ctx: ScriptContext,
@@ -214,7 +214,7 @@ export interface KaminoMarketWithdrawArgs {
 
 /**
  * `kamino:market:withdraw` — withdraw vault assets from a klend reserve via the
- * Voltr Kamino adaptor. Migrated from `manager-withdraw-market.ts`.
+ * Voltr Kamino adaptor. The manager signs; pass a large `amount` to withdraw all.
  */
 export async function buildKaminoMarketWithdrawOperation(
   ctx: ScriptContext,
@@ -307,12 +307,12 @@ export interface KaminoMarketClaimRewardArgs {
 
 /**
  * `kamino:market:claim-reward` — claim a klend reserve farm reward into the
- * vault asset for one farm. Migrated from `manager-claim-market-reward.ts` and
- * `manager-claim-market-reward-with-index.ts` (via the optional `rewardIndex`).
+ * vault asset for one farm. Passing `rewardIndex` selects a specific reward slot
+ * and switches to the `-with-index` adaptor discriminator (and command label).
  *
  * This operates on a single, already-resolved farm/reward. Discovering the
  * claimable farms (farms SDK) and building the Jupiter route are CLI-layer
- * concerns; see the migration docs.
+ * concerns; see docs/kamino.md.
  */
 export async function buildKaminoMarketClaimRewardOperation(
   ctx: ScriptContext,

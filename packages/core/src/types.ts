@@ -18,10 +18,9 @@ export interface BuiltOperation {
   computeUnitLimit?: number | null;
   /**
    * Structured, side-effect-free metadata a builder wants surfaced to the
-   * operator — addresses or values that the legacy scripts used to `console.log`
-   * (e.g. the Trustful arbitrary-deposit "withdrawal holding account"). The
-   * processor prints these in `print`/`execute` modes; they never affect the
-   * transaction itself.
+   * operator — e.g. the Trustful arbitrary-deposit "withdrawal holding account"
+   * the manager must return assets to before withdrawing. The processor prints
+   * these in `print`/`execute` modes; they never affect the transaction itself.
    */
   metadata?: Record<string, string>;
 }

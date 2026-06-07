@@ -3,11 +3,10 @@ import { address, type Address } from "@solana/kit";
 /**
  * Program IDs and on-chain constants used by every Kamino operation builder.
  *
- * These mirror the values the legacy `voltr-kamino-scripts` repo kept in
- * `src/constants/kamino.ts` and the program IDs the `@kamino-finance/klend-sdk`
- * ships (`KLend2g3...`, `Kvau...`) plus the Kamino farms program. They are kept
- * here, in the adapter package, so operation builders never reach into the SDK
- * (which targets an older `@solana/kit` major) for an `Address` constant.
+ * These are the program IDs `@kamino-finance/klend-sdk` ships (`KLend2g3...`,
+ * `Kvau...`) plus the Kamino farms program. They are kept here, in the adapter
+ * package, so operation builders never reach into the SDK (which targets an
+ * older `@solana/kit` major) for an `Address` constant.
  */
 
 /** Voltr Kamino adaptor program that the vault CPIs into. */

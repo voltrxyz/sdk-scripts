@@ -3,8 +3,8 @@ import { address, type Address } from "@solana/kit";
 /**
  * The Trustful adaptor program. Kept here so the adaptor program ID never leaks
  * into `packages/core` or sibling adapter packages — only `packages/trustful`
- * (and the future generic admin add/remove-adaptor helpers in VOL-224, which
- * import this constant) knows about it.
+ * knows about it. The generic vault adaptor-administration commands receive it as
+ * the `--adaptor-program` argument rather than importing it.
  */
 export const TRUSTFUL_ADAPTOR_PROGRAM_ID: Address = address(
   "3pnpK9nrs1R65eMV1wqCXkDkhSgN18xb1G5pgYPwoZjJ"

@@ -1,10 +1,11 @@
-# Migration Recipes & Operator Guide
+# Operator Guide
 
-How to run the new CLI for the flows that used to be one-script-per-task in the
-four legacy repos. For the old-script → command mapping, see
-[parity-matrix.md](./parity-matrix.md). For the full per-command flag and
-profile-field tables, see the [README](../README.md#commands); for the package
-design, see [architecture.md](./architecture.md).
+How to run the CLI for every common flow: profile setup, keypair/RPC handling,
+transaction modes, and runnable recipes per integration. For the full per-command
+flag and profile-field tables, see the [README](../README.md#commands); for the
+package design, see [architecture.md](./architecture.md); for per-integration
+detail, see [kamino.md](./kamino.md), [spot.md](./spot.md), and
+[trustful.md](./trustful.md).
 
 All examples use **neutral placeholders** — a `configs/my-vault.json` profile, a
 generic USDC asset, `<...>` for addresses, and `/path/to/<role>.json` for
@@ -67,9 +68,8 @@ offline, no RPC, no keypair):
 pnpm cli -- --profile configs/my-vault.json check
 ```
 
-> **Do not use deprecated product-specific vault/profile names** (e.g. legacy
-> token brands) in committed profiles or examples. Use neutral names like
-> `my-vault`.
+> **Use neutral, generic profile names** (e.g. `my-vault`) in committed profiles
+> and examples — not product- or brand-specific names.
 
 ### Keypairs & roles
 
@@ -221,8 +221,8 @@ pnpm cli -- --profile configs/my-vault.json --mode execute \
 ```
 
 `vault:init` accepts optional fee/duration flags (default `0`). It builds only
-the init transaction — if you use a lookup table, populate it separately (see
-[parity-matrix.md](./parity-matrix.md#optional-lut-extend-deferred)).
+the init transaction; if you use a lookup table, populate it separately with the
+core LUT helpers.
 
 ### Set metadata / update config
 
@@ -353,8 +353,8 @@ pnpm cli -- --profile configs/my-vault.json --mode execute spot:earn:withdraw --
 pnpm cli -- --profile configs/my-vault.json spot:query:strategy-positions
 ```
 
-> `spot:swap:sell` does a real foreign→asset swap. The legacy `manager-sell-spot.ts`
-> had a bug that built no swap — simulate first to confirm the new behavior.
+> `spot:swap:sell` performs a real foreign→asset swap (symmetric with
+> `spot:swap:buy`). Simulate first to confirm the route and amounts.
 
 ### Trustful arbitrary & curve flows
 

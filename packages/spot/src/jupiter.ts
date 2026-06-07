@@ -62,9 +62,8 @@ export interface JupiterSwapResult {
  * Fetches a Jupiter quote and swap instructions for `amountIn` of `inputMint`
  * into `outputMint`, then shapes them for the Spot adaptor's swap instruction.
  *
- * Returns an empty result (no swap) when `amountIn <= 0n`, mirroring the legacy
- * guard. This function performs no signing, sending, or CLI I/O; errors are
- * thrown for the caller to handle.
+ * Returns an empty result (no swap) when `amountIn <= 0n`. This function performs
+ * no signing, sending, or CLI I/O; errors are thrown for the caller to handle.
  */
 export async function setupJupiterSwap(
   params: JupiterSwapParams

@@ -31,10 +31,9 @@ import {
 } from "../pda.js";
 
 // The curve strategy is a per-vault singleton seeded by the constant "curve".
-// All four curve operations derive from this seed. (The legacy
-// `manager-repay-curve.ts` derived its strategy from the arbitrary
-// `strategySeedString` instead — a latent bug that only lined up when the
-// operator happened to set that field to "curve". See MIGRATION.md.)
+// All four curve operations (init, borrow, repay, remove) derive from this same
+// seed, which the adaptor's own `transfer_curve` also hard-codes — keeping the
+// vault-SDK and adaptor sides of every curve operation in agreement.
 
 interface TransferCurveInstructionArgs {
   /** Manager — `user` account; signs the transaction (the fee payer). */
@@ -64,11 +63,11 @@ interface TransferCurveInstructionArgs {
 /**
  * Build the adaptor's `transfer_curve` instruction directly in `@solana/kit`.
  *
- * The legacy `manager-repay-curve.ts` built this through an Anchor `Program`
- * (pulling in `@coral-xyz/anchor` + `@solana/web3.js`) for exactly one
- * instruction. We encode it by hand instead — discriminator + `u64` amount +
- * `u16` borrow-rate, with the nine accounts in IDL order — so this package stays
- * kit-native and free of legacy deps. See MIGRATION.md for the IDL decision.
+ * `transfer_curve` is the one curve instruction not exposed by the vault SDK, so
+ * it is encoded by hand — discriminator + `u64` amount + `u16` borrow-rate, with
+ * the nine accounts in IDL order — keeping this package kit-native (no
+ * `@coral-xyz/anchor` / `@solana/web3.js`). See docs/trustful.md for the IDL
+ * decision.
  *
  * Account order (from `voltr_trustful_adaptor` IDL `transfer_curve`):
  *   0 user (writable, signer)         5 token_program (readonly)
@@ -89,9 +88,9 @@ function buildTransferCurveInstruction(
     programAddress: TRUSTFUL_ADAPTOR_PROGRAM_ID,
     accounts: [
       // `user` is marked as a required signer; its signature is supplied by the
-      // transaction fee payer (the manager), exactly as the legacy script relied
-      // on. The sibling `withdraw_strategy` instruction also carries the manager
-      // as a signer, so the signature is collected even with a custom fee payer.
+      // transaction fee payer (the manager). The sibling `withdraw_strategy`
+      // instruction also carries the manager as a signer, so the signature is
+      // collected even with a custom fee payer.
       { address: args.manager.address, role: AccountRole.WRITABLE_SIGNER },
       { address: args.vaultStrategyAuth, role: AccountRole.WRITABLE },
       { address: args.strategy, role: AccountRole.READONLY },
@@ -115,16 +114,16 @@ export interface TrustfulCurveInitArgs {
 }
 
 /**
- * `trustful:curve:init` — Migrated from `manager-initialize-curve.ts`.
+ * `trustful:curve:init` — initialize the curve strategy.
  *
  * Creates the withdrawal-holding, vault-strategy, and manager asset ATAs (if
  * missing) and initializes the curve strategy.
  *
- * The legacy script also extended a lookup table with the init instruction's
- * accounts in a *second* transaction. Per the operation-builder contract
- * ("one builder, one operation"), that LUT-maintenance step is left to the
- * CLI/processor layer using core's `collectInstructionAddresses` +
- * `buildExtendLookupTableInstructions`; see MIGRATION.md.
+ * This builds only the init transaction. Optionally extending a lookup table
+ * with the init instruction's accounts is multi-transaction orchestration left
+ * to the CLI/processor layer (one builder, one operation), using core's
+ * `collectInstructionAddresses` + `buildExtendLookupTableInstructions`; see
+ * docs/trustful.md.
  */
 export async function buildTrustfulCurveInitOperation(
   ctx: ScriptContext,
@@ -196,7 +195,7 @@ export interface TrustfulCurveBorrowArgs {
 }
 
 /**
- * `trustful:curve:borrow` — Migrated from `manager-borrow-curve.ts`.
+ * `trustful:curve:borrow` — borrow against the curve strategy.
  *
  * Borrowing draws assets out of the vault, so it goes through the vault SDK's
  * `deposit` strategy instruction with the `BORROW_CURVE` discriminator. The
@@ -271,13 +270,12 @@ export interface TrustfulCurveRepayArgs {
 }
 
 /**
- * `trustful:curve:repay` — Migrated from `manager-repay-curve.ts`.
+ * `trustful:curve:repay` — repay borrowed assets to the curve strategy.
  *
  * Two instructions: the adaptor's own `transfer_curve` (hand-built in
- * {@link buildTransferCurveInstruction} rather than via Anchor) followed by the
- * vault SDK `withdraw` strategy instruction with the `REPAY_CURVE`
- * discriminator. The manager's asset ATA is only derived (not created) for the
- * `transfer_curve` `user_token_account`, matching the legacy script.
+ * {@link buildTransferCurveInstruction}) followed by the vault SDK `withdraw`
+ * strategy instruction with the `REPAY_CURVE` discriminator. The manager's asset
+ * ATA is only derived (not created) for the `transfer_curve` `user_token_account`.
  */
 export async function buildTrustfulCurveRepayOperation(
   ctx: ScriptContext,
@@ -364,7 +362,7 @@ export interface TrustfulCurveRemoveArgs {
 }
 
 /**
- * `trustful:curve:remove` — Migrated from `manager-remove-curve.ts`.
+ * `trustful:curve:remove` — close the curve strategy.
  *
  * Closes the curve strategy via the vault SDK `close` strategy instruction.
  */

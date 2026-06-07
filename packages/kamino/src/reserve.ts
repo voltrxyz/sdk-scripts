@@ -55,7 +55,7 @@ export interface MarketReserveAccounts {
   scope: Address;
   /**
    * Reserve farm + obligation farm state. When the reserve has no collateral
-   * farm both fall back to the klend program id, preserving legacy behavior.
+   * farm, both fall back to the klend program id (the adaptor's no-farm sentinel).
    */
   reserveFarmState: Address;
   obligationFarm: Address;

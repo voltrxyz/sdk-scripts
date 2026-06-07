@@ -104,12 +104,12 @@ async function buildCreateLpMetadataInstruction(args: {
 /**
  * Builds the vault-initialization transaction.
  *
- * NOTE: the legacy `admin-init-vault` script optionally created and extended a
- * lookup table in two further transactions after this one. That LUT bootstrap
- * is multi-transaction orchestration, which the operation-builder contract
- * defers to the CLI/processor layer (see docs/architecture.md rule 8). The
- * building blocks live in core (`buildExtendLookupTableInstructions`,
- * `collectInstructionAddresses`, `getAddressesByLookupTable`).
+ * This returns only the initialization transaction. Optionally creating and
+ * extending a lookup table afterwards is multi-transaction orchestration, which
+ * the operation-builder contract defers to the CLI/processor layer (see
+ * docs/architecture.md rule 8). The building blocks live in core
+ * (`buildExtendLookupTableInstructions`, `collectInstructionAddresses`,
+ * `getAddressesByLookupTable`).
  */
 export async function buildInitVaultOperation(
   _ctx: ScriptContext,
@@ -243,7 +243,7 @@ export async function buildAcceptVaultAdminOperation(
 }
 
 export interface HarvestFeeArgs {
-  /** Harvester + vault admin + fee payer (matches the legacy admin-keyed flow). */
+  /** Harvester + vault admin + fee payer; the admin signs and pays. */
   admin: KeyPairSigner;
   /** Vault manager address (receives the manager fee share). */
   manager: Address;

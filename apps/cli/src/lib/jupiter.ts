@@ -12,7 +12,7 @@ import type { KaminoJupiterSwap } from "@voltr/scripts-kamino";
  * The Kamino claim builders are pure: they take an already-resolved
  * `KaminoJupiterSwap` (swap bytes + accounts + LUTs) and splice it into the
  * adaptor CPI. Resolving the route is an external HTTP call, which the operation
- * package deliberately leaves to the CLI layer (see docs/kamino-migration.md
+ * package deliberately leaves to the CLI layer (see docs/kamino.md
  * "Claim-reward scope"). This helper performs that call and shapes the response
  * for the builder. It mirrors the kit-native `setupJupiterSwap` in
  * `packages/spot`, but emits the `KaminoJupiterSwap` shape the Kamino builders
@@ -44,7 +44,7 @@ interface JupiterQuoteResponse {
   error?: string;
 }
 
-/** Default Jupiter swap API base. Matches the legacy scripts' keyless lite host. */
+/** Default Jupiter swap API base: the lite (keyless) host. */
 const JUPITER_SWAP_API_BASE = "https://lite-api.jup.ag/swap/v1";
 
 export interface KaminoRewardSwapParams {

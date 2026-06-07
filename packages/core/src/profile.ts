@@ -39,11 +39,10 @@ const OptionalNonEmptyString = z.preprocess(
 );
 
 // An 8-byte adaptor instruction discriminator, stored as a JSON array of bytes.
-// This is a per-deployment value (the legacy `directWithdrawDiscriminator`, an
-// empty placeholder operators fill in), not a fixed adapter constant. An empty
-// array — the example-template placeholder — is treated as "not provided", so a
-// template still parses; the per-command accessor enforces presence. A present
-// array must be exactly 8 bytes, each in 0..255.
+// This is a per-deployment value operators fill in, not a fixed adapter
+// constant. An empty array — the example-template placeholder — is treated as
+// "not provided", so a template still parses; the per-command accessor enforces
+// presence. A present array must be exactly 8 bytes, each in 0..255.
 const OptionalDiscriminatorSchema = z.preprocess(
   (value) => (Array.isArray(value) && value.length === 0 ? undefined : value),
   z
@@ -286,7 +285,7 @@ export function requireKaminoDirectWithdrawDiscriminator(
       {
         ...options,
         hint:
-          "Set integrations.kamino.directWithdrawDiscriminator to the 8-byte adaptor instruction the kvault direct-withdraw flow invokes (the legacy per-deployment directWithdrawDiscriminator).",
+          "Set integrations.kamino.directWithdrawDiscriminator to the 8-byte adaptor instruction the kvault direct-withdraw flow invokes (a per-deployment value).",
       }
     );
   }

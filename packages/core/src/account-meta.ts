@@ -15,7 +15,7 @@ import {
  * This is the kit-native counterpart to `appendRemainingAccounts` in
  * `interop/web3-kit.ts` (which converts `@solana/web3.js` metas first). Use
  * these when the remaining accounts are already `@solana/kit` `Address` values;
- * use the web3 variant only at a legacy-SDK boundary.
+ * use the web3 variant only at a `@solana/web3.js` compatibility boundary.
  */
 
 /** A non-signer, read-only remaining account. */

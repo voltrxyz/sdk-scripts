@@ -27,8 +27,8 @@ async function derive(
 // --- klend (Kamino Lending) PDAs ---
 
 /**
- * The vault strategy authority's obligation in a klend market. Matches the
- * legacy seed layout: two zero bytes (tag, id), owner, market, then two
+ * The vault strategy authority's obligation in a klend market. The klend
+ * obligation seed layout is: two zero bytes (tag, id), owner, market, then two
  * system-program "no referrer / no owner" placeholders.
  */
 export function findObligationPda(

@@ -36,10 +36,8 @@ export interface QuerySpotStrategyPositionsArgs {
 /**
  * `spot:query:strategy-positions` — read a vault's total value and every
  * strategy allocation, augmenting each with the current raw foreign-token
- * balance where the strategy is backed by a token mint.
- *
- * Migrated from `query-strategy-positions.ts` (with Spot-specific foreign
- * balance lookup), reshaped to return structured data instead of logging.
+ * balance where the strategy is backed by a token mint. Read-only; returns
+ * structured data for the CLI to serialize.
  */
 export async function querySpotStrategyPositions(
   ctx: ScriptContext,
@@ -72,8 +70,8 @@ export async function querySpotStrategyPositions(
 /**
  * Resolves the strategy's foreign token account (owned by the strategy auth) and
  * returns its raw balance. The owning token program is taken from the strategy
- * mint account itself, mirroring the legacy script. Returns `null` for non-token
- * strategies or unreadable accounts.
+ * mint account itself. Returns `null` for non-token strategies or unreadable
+ * accounts.
  */
 async function readForeignAmount(
   ctx: ScriptContext,

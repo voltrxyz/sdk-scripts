@@ -8,8 +8,8 @@ import { encodeU64Le } from "@voltr/scripts-core";
  * same CPI: the adaptor embeds the raw Jupiter swap instruction data in its
  * `additionalArgs` and receives the swap's accounts as trailing remaining
  * accounts. Building that route requires an external Jupiter HTTP call, which
- * is a CLI-layer concern (out of scope here, see migration docs), so the
- * builders accept the already-resolved, `@solana/kit`-typed payload.
+ * is a CLI-layer concern (see docs/kamino.md), so the builders accept the
+ * already-resolved, `@solana/kit`-typed payload.
  *
  * When the reward mint equals the asset mint no swap is needed: pass an empty
  * `swapInstructionData` and `swapAccounts` (or omit the payload entirely).
@@ -25,8 +25,8 @@ export interface KaminoJupiterSwap {
 
 /**
  * Build the adaptor `additionalArgs` for a reward claim: an optional u64 LE
- * reward index prefix followed by the Jupiter swap data. Mirrors the legacy
- * `Buffer.concat([rewardIndexBuf, jupiterSwapData])` behavior.
+ * reward index prefix followed by the Jupiter swap data. The adaptor expects the
+ * index bytes, when present, ahead of the swap instruction data.
  */
 export function buildClaimAdditionalArgs(
   rewardIndex: number | undefined,
