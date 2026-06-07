@@ -1,11 +1,12 @@
 # Operator Guide
 
 How to run the CLI for every common flow: profile setup, keypair/RPC handling,
-transaction modes, and runnable recipes per integration. For the full per-command
-flag and profile-field tables, see the [README](../README.md#commands); for the
-package design, see [architecture.md](./architecture.md); for per-integration
-detail, see [kamino.md](./kamino.md), [spot.md](./spot.md), and
-[trustful.md](./trustful.md).
+transaction modes, and runnable recipes per integration. For the exact flags of
+any command, run `pnpm cli -- <command> --help` — the CLI is the authoritative
+reference for the command surface. For per-integration setup and required profile
+fields, see [kamino.md](./kamino.md), [spot.md](./spot.md), and
+[trustful.md](./trustful.md); for the package design, see
+[architecture.md](./architecture.md).
 
 All examples use **neutral placeholders** — a `configs/my-vault.json` profile, a
 generic USDC asset, `<...>` for addresses, and `/path/to/<role>.json` for
@@ -184,8 +185,9 @@ payload into the multisig instead of signing locally.
 
 - **Global options** (above) apply to every transaction command.
 - **Profile-sourced values** (vault address, asset mint/program, LUT, strategy
-  reserve/kvault/oracles/seed) come from `--profile` — see the README command
-  tables for which field each command reads.
+  reserve/kvault/oracles/seed) come from `--profile` — see the per-integration
+  docs ([kamino.md](./kamino.md), [spot.md](./spot.md), [trustful.md](./trustful.md))
+  for which field each command reads.
 - **Per-call values** (amounts, slippage, reward identity, destination, signer
   paths) are flags.
 - Discover any command's exact flags from the CLI:
@@ -383,80 +385,6 @@ pnpm cli -- --profile configs/my-vault.json --mode execute trustful:curve:remove
 
 ---
 
-## 5. Complete command reference
-
-One runnable `--mode print` example per command (the no-send preview — swap
-`print` for `simulate`/`execute` once verified). Assumes the role keypair and
-`RPC_URL` are set in `.env` (the build phase still needs a reachable RPC; see
-§2). Profile-sourced fields are read from `configs/my-vault.json`; flags shown
-are the per-call values.
-
-### `vault:*`
-
-```bash
-pnpm cli -- --profile configs/my-vault.json --mode print vault:init --manager <MANAGER_PUBKEY> --name "My USDC Vault" --max-cap 100000000000
-pnpm cli -- --profile configs/my-vault.json --mode print vault:init-and-set-token-metadata --manager <MANAGER_PUBKEY> --name "My USDC Vault" --max-cap 100000000000 --metadata-name "My USDC Vault Token" --metadata-symbol MYUSDC --metadata-uri https://example.com/metadata.json
-pnpm cli -- --profile configs/my-vault.json --mode print vault:set-token-metadata --metadata-name "My USDC Vault Token" --metadata-symbol MYUSDC --metadata-uri https://example.com/metadata.json
-pnpm cli -- --profile configs/my-vault.json --mode print vault:update-config --field max-cap --value 200000000000
-pnpm cli -- --profile configs/my-vault.json --mode print vault:accept-admin
-pnpm cli -- --profile configs/my-vault.json --mode print vault:harvest-fee --manager <MANAGER_PUBKEY>
-pnpm cli -- --profile configs/my-vault.json --mode print vault:deposit --amount 1000000
-pnpm cli -- --profile configs/my-vault.json --mode print vault:request-withdraw --amount 1000000
-pnpm cli -- --profile configs/my-vault.json --mode print vault:cancel-request-withdraw
-pnpm cli -- --profile configs/my-vault.json --mode print vault:withdraw
-pnpm cli -- --profile configs/my-vault.json --mode print vault:instant-withdraw --amount 1000000
-pnpm cli -- --profile configs/my-vault.json vault:query:position --user <USER_PUBKEY>
-pnpm cli -- --profile configs/my-vault.json vault:query:strategy-positions
-pnpm cli -- --profile configs/my-vault.json --mode print vault:add-adaptor
-pnpm cli -- --profile configs/my-vault.json --mode print vault:remove-adaptor --adaptor-program 3pnpK9nrs1R65eMV1wqCXkDkhSgN18xb1G5pgYPwoZjJ
-pnpm cli -- --profile configs/my-vault.json --mode print vault:init-direct-withdraw
-```
-
-### `kamino:*`
-
-```bash
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:market:init
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:market:deposit --amount 1000000
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:market:withdraw --amount 1000000
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:market:claim-reward --reward-mint <REWARD_MINT> --farm-state <FARM_STATE> --user-state <USER_STATE>
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:market:claim-reward-with-index --reward-mint <REWARD_MINT> --farm-state <FARM_STATE> --user-state <USER_STATE> --reward-index 0
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:kvault:init
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:kvault:deposit --amount 1000000
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:kvault:withdraw --amount 1000000
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:kvault:claim-reward --reward-mint <REWARD_MINT> --farm-state <FARM_STATE> --user-state <USER_STATE>
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:kvault:claim-reward-with-index --reward-mint <REWARD_MINT> --farm-state <FARM_STATE> --user-state <USER_STATE> --reward-index 0
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:kvault:direct-withdraw
-pnpm cli -- --profile configs/my-vault.json --mode print kamino:kvault:request-and-direct-withdraw --amount 1000000
-```
-
-### `spot:*`
-
-```bash
-pnpm cli -- --profile configs/my-vault.json --mode print spot:swap:init
-pnpm cli -- --profile configs/my-vault.json --mode print spot:swap:buy --amount 1000000 --slippage-bps 50
-pnpm cli -- --profile configs/my-vault.json --mode print spot:swap:sell --amount 1000000 --slippage-bps 50
-pnpm cli -- --profile configs/my-vault.json --mode print spot:earn:init
-pnpm cli -- --profile configs/my-vault.json --mode print spot:earn:extend-lut
-pnpm cli -- --profile configs/my-vault.json --mode print spot:earn:deposit --amount 1000000
-pnpm cli -- --profile configs/my-vault.json --mode print spot:earn:withdraw --amount 1000000
-pnpm cli -- --profile configs/my-vault.json --mode print spot:earn:init-direct-withdraw
-pnpm cli -- --profile configs/my-vault.json spot:query:strategy-positions
-```
-
-### `trustful:*`
-
-```bash
-pnpm cli -- --profile configs/my-vault.json --mode print trustful:arbitrary:init
-pnpm cli -- --profile configs/my-vault.json --mode print trustful:arbitrary:deposit --amount 1000000 --destination <DESTINATION_TOKEN_ACCOUNT> --position-value-after 1000000
-pnpm cli -- --profile configs/my-vault.json --mode print trustful:arbitrary:withdraw --amount 1000000 --position-value-after 0
-pnpm cli -- --profile configs/my-vault.json --mode print trustful:curve:init
-pnpm cli -- --profile configs/my-vault.json --mode print trustful:curve:borrow --amount 1000000 --borrow-rate-bps 50
-pnpm cli -- --profile configs/my-vault.json --mode print trustful:curve:repay --amount 1000000 --borrow-rate-bps 50
-pnpm cli -- --profile configs/my-vault.json --mode print trustful:curve:remove
-```
-
-### `check`
-
-```bash
-pnpm cli -- --profile configs/my-vault.json check
-```
+For the exact flags of any command, run `pnpm cli -- <command> --help` — the CLI
+is the authoritative reference and stays in sync with the implementation. `pnpm
+cli -- --help` lists every command grouped by prefix.

@@ -896,3 +896,29 @@ test("CLI entrypoint runs from source and prints help (subprocess smoke)", async
 test("CLI tolerates the leading -- that pnpm forwards (`pnpm cli -- --help`)", async () => {
   assert.match(await runCli(["--", "--help"]), /vault:deposit/);
 });
+
+// Regression guard for repo-relative profile resolution. The documented entry
+// point is `pnpm cli -- --profile configs/… <command>`, with the profile path
+// relative to the repository root.
+// The root `cli` script must therefore run the CLI with the repository root as
+// its working directory. Previously it delegated through a package filter, which
+// pnpm runs with apps/cli/ as the cwd, so a repo-relative `configs/…` profile
+// resolved under apps/cli/configs/… and failed with ENOENT. This invokes the
+// real root script from the repo root with the bundled example profile (via the
+// offline `check` command) and fails if relative resolution regresses.
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+
+test("`pnpm cli` resolves a repo-relative --profile from the repository root", async () => {
+  const { stdout } = await execFileAsync(
+    "pnpm",
+    [
+      "cli",
+      "--",
+      "--profile",
+      "configs/examples/usdc.mainnet.example.json",
+      "check",
+    ],
+    { cwd: REPO_ROOT, encoding: "utf8", timeout: 120000 }
+  );
+  assert.match(stdout, /usdc-mainnet-example/);
+});

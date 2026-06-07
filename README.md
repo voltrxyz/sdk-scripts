@@ -1,544 +1,117 @@
 # Voltr Integration Scripts
 
-The canonical workspace for operating Voltr vaults and their protocol
-integrations from one command-line tool. It pairs a shared vault core with thin,
-per-protocol adapter packages and a single CLI, so every operation is built the
-same way and driven by JSON profiles and flags rather than edited source.
+A single command-line tool for operating Voltr vaults and their protocol
+integrations. Every operation — vault setup, deposits/withdrawals, and each
+supported strategy — is one `<group>:<action>` command driven by a JSON
+**profile** (the vault's addresses) and **flags** (per-call values such as
+amounts and signer paths). Source files are never edited to change runtime
+values.
 
 - **One CLI** (`apps/cli`) exposes every operation as a `<group>:<action>` command.
-- **Shared vault behavior** — signers, RPC, token accounts, lookup tables,
+- **Shared vault behavior** — signers, RPC, token accounts, lookup tables, and
   transaction modes — lives in `packages/core`.
 - **Each integration** (Kamino, Spot, Trustful) is an adapter package that owns
-  only its protocol-specific account derivation and instruction builders.
+  only its protocol-specific account derivation and instruction building.
 
-Operational values (vault address, asset mint, strategy addresses) come from JSON
-profiles under `configs/`; per-call values (amounts, signer paths, slippage) come
-from CLI flags. Source files are never edited to change runtime values.
-
-## Layout
-
-```text
-apps/
-  cli/                 # User-facing command runner
-    src/
-      index.ts         # thin entry: wires global options + command groups
-      lib/             # globals, role signers, output, error helpers
-      commands/        # one module per command group (vault, kamino, …)
-packages/
-  core/                # Shared env, signer, tx, LUT, token, vault helpers
-  kamino/              # Kamino-specific operation builders
-  spot/                # Spot/Jupiter-specific operation builders
-  trustful/            # Trustful-specific operation builders
-configs/
-  examples/            # JSON profile examples
-docs/
-  architecture.md      # Package responsibilities + operation-builder contract
-  operator-guide.md    # Profiles, modes, and runnable recipes per integration
-```
-
-## Documentation
-
-**Operators start here:**
-
-- **[docs/operator-guide.md](./docs/operator-guide.md)** — the operator playbook: profile creation, keypair/RPC handling, transaction modes (`print` / `simulate` / `multisig` / `execute`), and runnable recipes for every common flow plus a one-example-per-command reference.
-
-**Per-integration references:**
-
-- **[docs/kamino.md](./docs/kamino.md)** — Kamino market and kvault strategies, reward claims, and the klend-sdk decode boundary.
-- **[docs/spot.md](./docs/spot.md)** — Spot swap and Jupiter Earn strategies.
-- **[docs/trustful.md](./docs/trustful.md)** — Trustful arbitrary and curve strategies.
-- **[docs/adaptor-admin.md](./docs/adaptor-admin.md)** — vault-level adaptor administration (add/remove adaptor, init direct-withdraw).
-
-**Contributors / reference:**
-
-- **[docs/architecture.md](./docs/architecture.md)** — read this first. Defines package responsibilities, the operation-builder contract, command naming, query vs transaction commands, the web3.js compatibility boundary, where operational values live, and the step-by-step recipe for adding a new operation or integration.
-- **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm typecheck`, `pnpm test`, `pnpm check`) to run before opening a PR, how to add adapter builder tests, and the terminology guard.
-
-## First commands
-
-Install dependencies:
+## Install
 
 ```bash
 pnpm install
 ```
 
-Print a vault deposit transaction plan:
+## First run
+
+Validate the bundled example profile. This is fully offline — no RPC, no
+keypair, and no deployed vault — and is the quickest way to confirm your
+checkout works:
 
 ```bash
-pnpm cli -- \
-  --profile configs/examples/usdc.mainnet.example.json \
-  --mode print \
-  vault:deposit \
-  --user-keypair /path/to/user.json \
-  --amount 1000000
+pnpm cli -- --profile configs/examples/usdc.mainnet.example.json check
 ```
 
-Execute it:
+> `pnpm cli -- <args>`: the leading `--` separates pnpm's own arguments from the
+> CLI's. The CLI strips it automatically, so the flags after it (`--profile`,
+> `--mode`, …) are parsed normally. Repository-relative `--profile` and
+> `--*-keypair` paths resolve from the directory you run `pnpm cli` in (the
+> repository root).
+
+To operate a real vault, create a profile and initialize the vault before
+running any vault operation:
 
 ```bash
-RPC_URL="https://your-rpc" pnpm cli -- \
-  --profile configs/examples/usdc.mainnet.example.json \
-  --mode execute \
-  vault:deposit \
-  --user-keypair /path/to/user.json \
-  --amount 1000000
+# 1. Copy the example, then edit configs/my-vault.json: set
+#    vault.assetMintAddress and vault.assetTokenProgram. Leave
+#    vault.vaultAddress empty — vault:init generates it.
+cp configs/examples/usdc.mainnet.example.json configs/my-vault.json
+
+# 2. Validate the edited profile (offline):
+pnpm cli -- --profile configs/my-vault.json check
+
+# 3. Initialize the vault. The admin signs; the manager is just an address. A
+#    fresh vault address is generated and printed. (Needs a reachable RPC and the
+#    admin keypair — see the operator guide for --rpc-url and the env vars.)
+RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/to/admin.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:init --manager <MANAGER_PUBKEY> --name "My USDC Vault" --max-cap 100000000000
+
+# 4. Record the printed "Generated vault address" as vault.vaultAddress in
+#    configs/my-vault.json.
+
+# 5. Only now, with vault.vaultAddress set, run vault operations — e.g. deposit:
+RPC_URL="https://your-rpc" USER_KEYPAIR=/path/to/user.json pnpm cli -- \
+  --profile configs/my-vault.json --mode execute \
+  vault:deposit --amount 1000000
 ```
 
-> When invoked as `pnpm cli -- <args>`, the leading `--` separates pnpm's own
-> arguments from the CLI's. The CLI strips it automatically, so the flags after
-> it (`--profile`, `--mode`, …) are parsed normally.
+> Only `check` is fully offline. Every transaction command builds against live
+> chain state, so a reachable RPC is required **even for `--mode print`**. Always
+> preview with `--mode print` (then `--mode simulate`) before `--mode execute`.
+> See the operator guide's
+> [transaction modes](./docs/operator-guide.md#2-transaction-modes--verify-before-you-execute).
 
-## Commands
+## Supported integrations
 
-Discover everything from the CLI itself:
+| Integration | Command groups | Reference |
+| --- | --- | --- |
+| Voltr vault (core) | `vault:*` | [operator guide](./docs/operator-guide.md) |
+| Kamino | `kamino:market:*`, `kamino:kvault:*` | [docs/kamino.md](./docs/kamino.md) |
+| Spot (Jupiter swap + Earn) | `spot:swap:*`, `spot:earn:*` | [docs/spot.md](./docs/spot.md) |
+| Trustful | `trustful:arbitrary:*`, `trustful:curve:*` | [docs/trustful.md](./docs/trustful.md) |
+| Adaptor administration | `vault:add-adaptor`, `vault:init-direct-withdraw`, … | [docs/adaptor-admin.md](./docs/adaptor-admin.md) |
+
+## Documentation
+
+**Vault managers start here:**
+
+- **[docs/operator-guide.md](./docs/operator-guide.md)** — the canonical
+  vault-manager guide: profile creation, keypair/role handling, RPC, transaction
+  modes (`print` / `simulate` / `multisig` / `execute`), and runnable end-to-end
+  workflows for every supported flow.
+- Per-integration references — integration-specific setup, required profile
+  fields, and operational constraints: [Kamino](./docs/kamino.md),
+  [Spot](./docs/spot.md), [Trustful](./docs/trustful.md), and
+  [adaptor administration](./docs/adaptor-admin.md).
+
+**Contributors:**
+
+- **[docs/architecture.md](./docs/architecture.md)** — package responsibilities,
+  the operation-builder contract, command naming, the web3.js compatibility
+  boundary, and the recipe for adding a new operation or integration.
+- **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm check`),
+  how to add an adapter builder test, and the terminology guard.
+
+## Discovering commands
+
+The CLI itself is the authoritative reference for the command surface and every
+flag:
 
 ```bash
 pnpm cli -- --help                 # global options + all command groups
 pnpm cli -- vault:deposit --help   # flags for a single command
 ```
 
-Commands are grouped by `<group>:*` prefixes. Every command takes the
-[global options](#global-options) (`--profile`, `--rpc-url`, `--mode`, priority
-fee, …); the per-command flags below are the values that are not read from the
-profile.
-
-| Group        | What it covers                          | Example command |
-| ------------ | --------------------------------------- | --------------- |
-| `vault:*`    | shared Voltr vault operations           | `vault:deposit` |
-| `kamino:*`   | Kamino market / kvault strategies       | `kamino:market:deposit` |
-| `spot:*`     | Spot swap / Earn strategies             | `spot:swap:buy` |
-| `trustful:*` | Trustful arbitrary / curve strategies   | `trustful:curve:borrow` |
-| `check`      | validate a profile (maintenance)        | `check` |
-
-One example per group (all default to `--mode print`, so they build a plan
-without sending anything):
-
-```bash
-# vault: deposit the profile asset into the vault
-pnpm cli -- --profile configs/my-vault.json \
-  vault:deposit --amount 1000000
-
-# kamino: deposit into a Kamino lending market
-pnpm cli -- --profile configs/my-vault.json \
-  kamino:market:deposit --amount 1000000
-
-# spot: buy the foreign asset via a spot swap
-pnpm cli -- --profile configs/my-vault.json \
-  spot:swap:buy --amount 1000000 --slippage-bps 50
-
-# trustful: borrow against a curve strategy
-pnpm cli -- --profile configs/my-vault.json \
-  trustful:curve:borrow --amount 1000000 --borrow-rate-bps 50
-
-# check: validate a profile and print a configuration summary (no network)
-pnpm cli -- --profile configs/my-vault.json check
-```
-
-Each group is documented below: [vault](#vault-commands),
-[kamino](#kamino-commands), [spot](#spot-commands), and
-[trustful](#trustful-commands).
-
-### Vault commands
-
-Every `vault:*` operation is listed below. All are transaction commands (they
-honor `--mode`) except the two `vault:query:*` commands, which are read-only:
-they ignore `--mode` and need no keypair. Profile-sourced values (vault address,
-asset mint, asset token program, lookup table) come from `--profile`; the flags
-below are the per-call values.
-
-| Command | Role | Per-call flags |
-| --- | --- | --- |
-| `vault:init` | admin | `--manager`, `--name`, `--max-cap` (+ optional fee/duration flags, default `0`) |
-| `vault:init-and-set-token-metadata` | admin | init flags above + `--metadata-name`, `--metadata-symbol`, `--metadata-uri` |
-| `vault:set-token-metadata` | admin | `--metadata-name`, `--metadata-symbol`, `--metadata-uri` |
-| `vault:update-config` | admin | `--field <name>`, `--value <raw\|address>` |
-| `vault:accept-admin` | admin (pending) | — |
-| `vault:harvest-fee` | admin | `--manager <address>` |
-| `vault:deposit` | user | `--amount <raw>` |
-| `vault:request-withdraw` | user | `--amount <raw>`, `--in-lp`, `--all` |
-| `vault:cancel-request-withdraw` | user | — |
-| `vault:withdraw` | user | — |
-| `vault:instant-withdraw` | user | `--amount <raw>`, `--in-lp`, `--all` |
-| `vault:query:position` | none | `--user <address>` |
-| `vault:query:strategy-positions` | none | — |
-| `vault:add-adaptor` | admin | optional `--adaptor-program <address>` |
-| `vault:remove-adaptor` | admin | optional `--adaptor-program <address>` |
-| `vault:init-direct-withdraw` | admin | optional `--adaptor-program <address>`, `--strategy <address>`, `--discriminator <8 bytes>`, `--allow-user-args` |
-
-Role keypairs come from `--<role>-keypair` or the `<ROLE>_KEYPAIR` env var (see
-[Keypairs](#keypairs)). `vault:init` does **not** need the manager's keypair —
-only its address via `--manager`, because the manager does not sign
-initialization. A fresh vault keypair is generated for each `vault:init*` run
-and its address is printed; record it as `vault.vaultAddress` in your profile
-after a successful `--mode execute`. Because that generated keypair must sign
-initialization, the `vault:init*` commands do **not** support `--mode multisig`
-(a multisig payload can't carry the ephemeral keypair's signature) and reject it
-with a clear error — use `--mode execute`.
-
-`vault:update-config` updates one field per call. Run `vault:update-config
---help` for the full field list; numeric fields take a raw-integer `--value`,
-while `manager` / `pending-admin` take a base58 address. `--in-lp` makes
-`--amount` an LP-token amount; `--all` withdraws the entire position.
-
-`vault:add-adaptor`, `vault:remove-adaptor`, and
-`vault:init-direct-withdraw` default to the Kamino adaptor. Override
-`--adaptor-program` only when registering another adaptor. The default
-direct-withdraw strategy is `integrations.kamino.kvaultAddress`, and the
-instruction discriminator comes from
-`integrations.kamino.directWithdrawDiscriminator`. When overriding
-`--adaptor-program`, pass that adaptor's 8-byte discriminator explicitly with
-`--discriminator`, for example `--discriminator 1,2,3,4,5,6,7,8`. For the Spot
-Jupiter Earn strategy use [`spot:earn:init-direct-withdraw`](#spot-commands),
-which derives the strategy and adaptor program for you. See
-[Trustful commands](#trustful-commands) for the Trustful adaptor program id.
-
-#### Vault lifecycle flow
-
-A full vault lifecycle, from initialization to withdrawal (a profile plus flags
-replaces editing any source config before a run):
-
-```bash
-# 1. Create a profile for the vault asset (copy an example, then edit it):
-cp configs/examples/usdc.mainnet.example.json configs/my-vault.json
-# set vault.assetMintAddress / vault.assetTokenProgram in configs/my-vault.json
-
-# 2. Initialize the vault (admin signs; manager is just an address). Preview the
-#    plan with --mode print, then --mode execute. The vault address is printed.
-RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:init --manager <MANAGER_PUBKEY> --name "My USDC Vault" --max-cap 100000000000
-
-# 3. Record the printed "Generated vault address" as vault.vaultAddress in
-#    configs/my-vault.json.
-
-# 4. (optional) Update a config field later:
-RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:update-config --field max-cap --value 200000000000
-
-# 5. Deposit as a user:
-RPC_URL="https://your-rpc" USER_KEYPAIR=/path/user.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:deposit --amount 1000000
-
-# 6. Check the position (read-only, no keypair):
-RPC_URL="https://your-rpc" pnpm cli -- \
-  --profile configs/my-vault.json \
-  vault:query:position --user <USER_PUBKEY>
-
-# 7. Withdraw — request then claim after any waiting period, or instant-withdraw:
-RPC_URL="https://your-rpc" USER_KEYPAIR=/path/user.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:request-withdraw --amount 1000000
-RPC_URL="https://your-rpc" USER_KEYPAIR=/path/user.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:withdraw
-```
-
-### Kamino commands
-
-Kamino commands use `integrations.kamino.reserveAddress` for market operations
-and `integrations.kamino.kvaultAddress` for kvault operations. Signers still
-come from flags or env vars: manager-signed strategy operations use
-`--manager-keypair` / `MANAGER_KEYPAIR`, while user direct-withdraw operations
-use `--user-keypair` / `USER_KEYPAIR`.
-
-| Command | Role | Profile strategy field | Per-call flags |
-| --- | --- | --- | --- |
-| `kamino:market:init` | manager | `reserveAddress` | — |
-| `kamino:market:deposit` | manager | `reserveAddress` | `--amount <raw>` |
-| `kamino:market:withdraw` | manager | `reserveAddress` | `--amount <raw>` |
-| `kamino:market:claim-reward` | manager | `reserveAddress` | `--reward-mint`, `--farm-state`, `--user-state`, optional `--reward-token-program`, `--swap-amount`, `--slippage-bps`, `--jupiter-max-accounts` |
-| `kamino:market:claim-reward-with-index` | manager | `reserveAddress` | claim flags above + `--reward-index <n>` |
-| `kamino:kvault:init` | manager | `kvaultAddress` | — |
-| `kamino:kvault:deposit` | manager | `kvaultAddress` | `--amount <raw>` |
-| `kamino:kvault:withdraw` | manager | `kvaultAddress` | `--amount <raw>` |
-| `kamino:kvault:claim-reward` | manager | `kvaultAddress` | `--reward-mint`, `--farm-state`, `--user-state`, optional `--reward-token-program`, `--swap-amount`, `--slippage-bps`, `--jupiter-max-accounts` |
-| `kamino:kvault:claim-reward-with-index` | manager | `kvaultAddress` | claim flags above + `--reward-index <n>` |
-| `kamino:kvault:direct-withdraw` | user | `kvaultAddress` | — |
-| `kamino:kvault:request-and-direct-withdraw` | user | `kvaultAddress` | `--amount <raw>`, optional `--in-lp`, `--all` |
-
-Examples:
-
-```bash
-# Register the Kamino adaptor, then bind the profile kvault for direct withdraw.
-RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:add-adaptor
-
-RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:init-direct-withdraw
-
-# Initialize and deposit into the profile's Kamino market reserve.
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  kamino:market:init
-
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  kamino:market:deposit --amount 1000000
-
-# Initialize and deposit into the profile's Kamino kvault.
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  kamino:kvault:init
-
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  kamino:kvault:deposit --amount 1000000
-
-# Claim one resolved farm reward. Omit --swap-amount when reward mint == asset.
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  kamino:market:claim-reward-with-index \
-  --reward-mint <REWARD_MINT> \
-  --farm-state <FARM_STATE> \
-  --user-state <VAULT_STRATEGY_FARM_USER_STATE> \
-  --reward-index 0 \
-  --swap-amount <RAW_REWARD_AMOUNT>
-```
-
-### Spot commands
-
-Spot covers two strategy domains under one adaptor: `spot:swap:*` (swap the vault
-asset into/out of a foreign asset via Jupiter) and `spot:earn:*` (Jupiter Earn
-lending). All are transaction commands except `spot:query:strategy-positions`,
-which is read-only. Profile-sourced values come from `--profile`; the flags below
-are the per-call values.
-
-| Command | Role | Per-call flags |
-| --- | --- | --- |
-| `spot:swap:init` | manager | — |
-| `spot:swap:buy` | manager | `--amount <raw>`, `--slippage-bps <bps>` (+ optional `--jupiter-max-accounts`, `--minimum-threshold-amount-out`) |
-| `spot:swap:sell` | manager | `--amount <raw>`, `--slippage-bps <bps>` (+ optional `--jupiter-max-accounts`, `--minimum-threshold-amount-out`) |
-| `spot:earn:init` | manager | — |
-| `spot:earn:deposit` | manager | `--amount <raw>` |
-| `spot:earn:withdraw` | manager | `--amount <raw>` |
-| `spot:earn:extend-lut` | manager | — (extends `vault.lookupTableAddress`) |
-| `spot:earn:init-direct-withdraw` | admin | — (reads `integrations.spot.directWithdrawDiscriminator`) |
-| `spot:query:strategy-positions` | none | — |
-
-The `spot:swap:*` commands read the foreign mint, foreign token program, and both
-Pyth oracle addresses from `integrations.spot.*`; `spot:swap:buy` / `spot:swap:sell`
-build their swap through the Jupiter API. The `spot:earn:*` deposit/withdraw
-commands act on the vault asset only. `spot:earn:init` initializes the Jupiter Earn
-strategy; run `spot:earn:extend-lut` afterwards if you use a lookup table.
-`spot:earn:init-direct-withdraw`
-registers Earn as a vault direct-withdraw strategy and needs the 8-byte
-`integrations.spot.directWithdrawDiscriminator` (a per-deployment value).
-`spot:query:strategy-positions` augments each Voltr strategy's position value with
-the strategy's current raw foreign-token balance where available.
-
-```bash
-# Spot: initialize the swap strategy, then buy / sell the foreign asset
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  spot:swap:init
-
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  spot:swap:buy --amount 1000000 --slippage-bps 50
-
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  spot:swap:sell --amount 1000000 --slippage-bps 50 --jupiter-max-accounts 16
-
-# Jupiter Earn: initialize, then deposit / withdraw the vault asset
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  spot:earn:init
-
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  spot:earn:deposit --amount 1000000
-
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  spot:earn:withdraw --amount 1000000
-
-# Spot: read the vault's per-strategy positions (read-only, no keypair)
-RPC_URL="https://your-rpc" pnpm cli -- \
-  --profile configs/my-vault.json \
-  spot:query:strategy-positions
-```
-
-Before the manager can route through Spot, the admin must register the adaptor
-once with `vault:add-adaptor --adaptor-program <SPOT_ADAPTOR_PROGRAM_ID>` (see the
-[Vault commands](#vault-commands) table). See [docs/spot.md](./docs/spot.md) for
-the full Spot integration reference.
-
-### Trustful commands
-
-The `trustful:*` commands operate the Trustful adaptor's two strategy families:
-an operator-named **arbitrary** strategy and a per-vault singleton **curve**
-strategy. All are manager-signed transaction commands (they honor `--mode`).
-Profile-sourced values (vault address, asset mint/token program, lookup table,
-and — for the arbitrary commands — `integrations.trustful.strategySeedString`)
-come from `--profile`; the flags below are the per-call values.
-
-| Command | Role | Per-call flags |
-| --- | --- | --- |
-| `trustful:arbitrary:init` | manager | — |
-| `trustful:arbitrary:deposit` | manager | `--amount <raw>`, `--destination <address>`, `--position-value-after <raw>` |
-| `trustful:arbitrary:withdraw` | manager | `--amount <raw>`, `--position-value-after <raw>` |
-| `trustful:curve:init` | manager | — |
-| `trustful:curve:borrow` | manager | `--amount <raw>`, `--borrow-rate-bps <bps>` |
-| `trustful:curve:repay` | manager | `--amount <raw>`, `--borrow-rate-bps <bps>` |
-| `trustful:curve:remove` | manager | — |
-
-The arbitrary strategy is named by `integrations.trustful.strategySeedString`;
-the curve strategy is a singleton seeded by the adaptor's fixed `"curve"`
-constant, so the curve commands take no seed flag. `trustful:arbitrary:deposit`
-prints the **withdrawal-holding account** you must return strategy assets to
-before running `trustful:arbitrary:withdraw` (returned as operation metadata).
-
-Registering the Trustful adaptor on a vault is a one-time admin step using the
-generic `vault:add-adaptor` command with the Trustful adaptor program id
-(`3pnpK9nrs1R65eMV1wqCXkDkhSgN18xb1G5pgYPwoZjJ`):
-
-```bash
-# admin: allow the Trustful adaptor on the vault (one-time, before init)
-RPC_URL="https://your-rpc" ADMIN_KEYPAIR=/path/admin.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:add-adaptor --adaptor-program 3pnpK9nrs1R65eMV1wqCXkDkhSgN18xb1G5pgYPwoZjJ
-
-# arbitrary: deposit vault assets into the named strategy (manager signs). The
-# command prints the holding account to return assets to before withdrawing.
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  trustful:arbitrary:deposit --amount 1000000 \
-  --destination <DESTINATION_TOKEN_ACCOUNT> --position-value-after 1000000
-
-# curve: borrow against the curve strategy (manager signs)
-RPC_URL="https://your-rpc" MANAGER_KEYPAIR=/path/manager.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  trustful:curve:borrow --amount 1000000 --borrow-rate-bps 50
-```
-
-See [docs/trustful.md](./docs/trustful.md) for the full Trustful integration
-reference.
-
-### Global options
-
-| Option | Purpose |
-| ------ | ------- |
-| `--profile <path>` | JSON profile to load (required). |
-| `--rpc-url <url>` | RPC override; see [RPC URL](#rpc-url) precedence. |
-| `--mode <mode>` | `print` (default), `simulate`, `multisig`, or `execute`. |
-| `--multisig-address <pubkey>` | Vault PDA that signs on-chain; required for `--mode multisig`. |
-| `--priority-fee <kind>` | `helius` (default), `rpc`, `fixed`, or `none`. |
-| `--priority-fee-micro-lamports <n>` | microLamports for `--priority-fee fixed` (or a fallback). |
-| `--compute-unit-limit <n>` | Override the estimated compute-unit limit. |
-
-Transaction commands honor `--mode`; `check` ignores it (it never builds a
-transaction). See [docs/architecture.md](./docs/architecture.md) for how
-`--mode` is dispatched by `processOperation`.
-
-## Checks before opening a PR
-
-All checks are offline — no RPC URL, no keypair files, no build step:
-
-```bash
-pnpm typecheck   # type-checks every package + app, including test files
-pnpm test        # runs all *.test.ts + the terminology guard (node:test)
-pnpm check       # typecheck + build + test (the CI-ready gate)
-```
-
-Run `pnpm check` before opening a PR. See **[docs/testing.md](./docs/testing.md)**
-for what is covered, the offline guarantee, the terminology guard, and how to add
-a builder test for a new operation.
-
-## Profiles
-
-A profile is a JSON file that describes one vault deployment: which cluster it lives on, which asset it holds, optional lookup table, and any integration-specific addresses the vault uses.
-
-Profiles are validated with zod when loaded. If a field is missing or malformed, the CLI fails before any RPC call or transaction is built, and the error names the offending field.
-
-Profile shape:
-
-```jsonc
-{
-  "name": "usdc-mainnet-example",       // required, non-empty
-  "cluster": "mainnet-beta",            // required: localnet | devnet | mainnet-beta
-  "rpcUrl": "",                         // optional fallback RPC; CLI/env override below
-  "vault": {
-    "name": "USDC",                     // optional display label
-    "assetMintAddress": "...",          // required, base58
-    "assetTokenProgram": "...",         // required, base58 (Token or Token-2022 program)
-    "vaultAddress": "...",              // required by vault:* commands
-    "useLookupTable": false,            // optional, defaults to false
-    "lookupTableAddress": "..."         // required when useLookupTable is true
-  },
-  "integrations": {
-    "kamino":   { "reserveAddress": "...", "kvaultAddress": "...", "directWithdrawDiscriminator": [/* 8 bytes */] },
-    "spot":     { "foreignMintAddress": "...", "foreignTokenProgram": "...", "assetOracleAddress": "...", "foreignOracleAddress": "...", "directWithdrawDiscriminator": [/* 8 bytes; only for spot:earn:init-direct-withdraw */] },
-    "trustful": { "strategySeedString": "..." }
-  }
-}
-```
-
-Notes:
-
-- Empty strings are treated as "not provided"; per-command accessors decide whether a missing field is fatal for that command.
-- No keypair paths or secret material live in profiles. Keypairs come from `--user-keypair` (and similar) CLI flags or env vars.
-- Amounts come from CLI flags (e.g. `--amount`), not from the profile.
-
-To create a new profile, copy an example file into `configs/` (the workspace ignores nothing here by default — make sure it is not committed if it references real production addresses you don't want in git):
-
-```bash
-cp configs/examples/usdc.mainnet.example.json configs/my-vault.json
-# edit configs/my-vault.json: fill in vault.vaultAddress, optional LUT, integration sections
-```
-
-## Overrides
-
-### RPC URL
-
-Resolved in this order (first non-empty wins):
-
-1. `--rpc-url <url>` CLI flag
-2. `RPC_URL` env var
-3. `HELIUS_RPC_URL` env var
-4. `rpcUrl` field in the profile
-
-If none of those provide a URL, the CLI exits with an error before doing any work.
-
-### Keypairs
-
-Commands sign as one of three roles. Each role resolves its keypair path from a
-flag, falling back to an environment variable (set them in `.env`):
-
-| Role      | Flag                  | Env var           |
-| --------- | --------------------- | ----------------- |
-| `admin`   | `--admin-keypair`     | `ADMIN_KEYPAIR`   |
-| `manager` | `--manager-keypair`   | `MANAGER_KEYPAIR` |
-| `user`    | `--user-keypair`      | `USER_KEYPAIR`    |
-
-Paths point to standard Solana JSON keypair files. The flag wins when both are
-present; if neither is set, the command fails before doing any work with a
-message naming both the flag and the env var. No keypair material lives in
-profiles.
-
-```bash
-# Explicit flag:
-RPC_URL="https://your-rpc" pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:deposit --user-keypair /path/to/user.json --amount 1000000
-
-# Or via env var, no flag needed:
-RPC_URL="https://your-rpc" USER_KEYPAIR=/path/to/user.json pnpm cli -- \
-  --profile configs/my-vault.json --mode execute \
-  vault:deposit --amount 1000000
-```
-
-## Design rules (summary)
-
-The full rules live in [docs/architecture.md](./docs/architecture.md). The short version:
-
-- Operation builders return a `BuiltOperation` (`label`, `instructions`, optional `lookupTableAddresses`, optional `computeUnitLimit`). They do not read files, parse CLI flags, send transactions, or read `ctx.profile`.
-- CLI commands parse argv, load signers and profiles, coerce values, call the builder, and hand the result to `processOperation`.
-- Routine operational values (vault address, asset mint, LUTs, strategy seeds) live in JSON profiles under `configs/`. Per-call values (amounts, signer paths, slippage) come from CLI flags. TypeScript source files are not edited to change runtime values.
-- `packages/core` owns signer/RPC/LUT/send behavior and must not depend on `@solana/web3.js`. Adapter packages that depend on such SDKs convert at the web3.js compatibility boundary using `packages/core/src/interop/web3-kit.ts`; no web3.js type escapes a builder.
-- New execution modes (`simulate`, `multisig`) are added once in `packages/core/src/tx/processor.ts`, not per adapter.
-- Adapter packages do not import each other; Kamino, Spot, and Trustful are independent.
+Commands are grouped by `<group>:*` prefix (`vault:`, `kamino:`, `spot:`,
+`trustful:`, plus the maintenance command `check`). Every command takes the
+global options (`--profile`, `--rpc-url`, `--mode`, priority-fee flags); the
+[operator guide](./docs/operator-guide.md) explains what each option does and
+walks through the common workflows.
