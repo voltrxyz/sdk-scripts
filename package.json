@@ -10,7 +10,7 @@
     "test": "TSX_TSCONFIG_PATH=tsconfig.check.json node --import tsx --test \"packages/*/src/**/*.test.ts\" \"apps/*/src/**/*.test.ts\" \"scripts/**/*.test.mjs\"",
     "check:terminology": "node scripts/check-terminology.mjs",
     "check": "pnpm run typecheck && pnpm run build && pnpm run test",
-    "cli": "pnpm --filter @voltr/scripts-cli dev"
+    "cli": "TSX_TSCONFIG_PATH=tsconfig.check.json tsx apps/cli/src/index.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.10",

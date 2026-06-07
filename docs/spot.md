@@ -7,25 +7,19 @@ The `spot:*` commands cover two strategy domains under one Voltr adaptor:
 - **earn** (`spot:earn:*`) — deposit/withdraw the vault asset through Jupiter
   Earn (lending).
 
-Builders live in `packages/spot`; the CLI wiring is in
-`apps/cli/src/commands/spot.ts`. Every builder follows the operation-builder
-contract in [architecture.md](./architecture.md). The package stays 100%
-`@solana/kit` — Jupiter is a REST API, not a web3.js SDK, so no web3.js types are
-pulled in.
+For runnable end-to-end workflows (always preview with `--mode print` /
+`simulate` before `execute`), see the operator guide's
+[Spot buy/sell & Earn flows](./operator-guide.md#spot-buysell--earn-flows). Run
+`pnpm cli -- <command> --help` for the exact flags and defaults of any command.
 
 ## Commands
 
-| Command | Builder / query (`@voltr/scripts-spot`) | Role |
-| --- | --- | --- |
-| `spot:swap:init` | `buildSpotSwapInitOperation` | manager |
-| `spot:swap:buy` | `buildSpotSwapBuyOperation` | manager |
-| `spot:swap:sell` | `buildSpotSwapSellOperation` | manager |
-| `spot:earn:init` | `buildSpotEarnInitOperation` | manager |
-| `spot:earn:extend-lut` | `buildSpotEarnExtendLutOperation` | manager |
-| `spot:earn:deposit` | `buildSpotEarnDepositOperation` | manager |
-| `spot:earn:withdraw` | `buildSpotEarnWithdrawOperation` | manager |
-| `spot:earn:init-direct-withdraw` | `buildSpotEarnInitDirectWithdrawOperation` | admin |
-| `spot:query:strategy-positions` | `querySpotStrategyPositions` (query) | none (read-only) |
+| Command | Role |
+| --- | --- |
+| `spot:swap:init` / `buy` / `sell` | manager |
+| `spot:earn:init` / `extend-lut` / `deposit` / `withdraw` | manager |
+| `spot:earn:init-direct-withdraw` | admin |
+| `spot:query:strategy-positions` | none (read-only) |
 
 Register the Spot adaptor on the vault once with `vault:add-adaptor
 --adaptor-program <SPOT_ADAPTOR_PROGRAM_ID>` before the manager can route through
@@ -41,9 +35,9 @@ Spot — `vault:add-adaptor` is a generic vault operation
   (`vault.lookupTableAddress`); and
   `integrations.spot.directWithdrawDiscriminator`.
 - **Flags**: amount (`--amount`), slippage (`--slippage-bps`), the Jupiter
-  account cap (`--jupiter-max-accounts`, default `16`), and the optional
+  account cap (`--jupiter-max-accounts`), and the optional
   `--minimum-threshold-amount-out`.
-- **Role signers**: `--manager-keypair` / `--admin-keypair` (or the matching env
+- **Signers**: `--manager-keypair` / `--admin-keypair` (or the matching env
   vars), never profiles.
 
 ### `directWithdrawDiscriminator`
@@ -61,31 +55,22 @@ constant, so it lives in the profile:
 }
 ```
 
-It is validated by the schema (exactly 8 bytes, each `0..255`) and read by the
-`requireSpotDirectWithdrawDiscriminator` accessor. An empty array `[]` (the
-example-template placeholder) is treated as "not provided", so only profiles that
-actually run direct-withdraw fill it in. The generic `vault:init-direct-withdraw`
-command instead takes the discriminator as `--discriminator <8 comma-separated
-bytes>`, since it is adapter-agnostic.
+It is validated by the schema (exactly 8 bytes, each `0..255`). An empty array
+`[]` (the example-template placeholder) is treated as "not provided", so only
+profiles that actually run direct-withdraw fill it in. The generic
+`vault:init-direct-withdraw` command instead takes the discriminator as
+`--discriminator <8 comma-separated bytes>`, since it is adapter-agnostic.
 
-## Account derivation
+## Operational constraints
 
-Spot/Jupiter account derivation lives entirely in `packages/spot`
-(`deriveJupiterEarnAccounts`, `findJupiterLendingPda`,
-`findSpotOracleInitReceiptPda`, `setupJupiterSwap`); the CLI commands never
-re-derive it. Jupiter swap setup is encapsulated in
-`packages/spot/src/jupiter.ts` (`setupJupiterSwap`) and unit-tested independently
-of the CLI via an injectable `fetch`.
-
-## Behavior notes
-
-- **`spot:swap:sell` is symmetric with `spot:swap:buy`.** Sell performs a
-  foreign→asset swap of `--amount`; buy performs the asset→foreign swap. Verify
-  with `--mode simulate` before executing.
+- **`spot:swap:sell` is symmetric with `spot:swap:buy` and performs a real
+  swap.** Sell swaps `--amount` of the foreign asset back to the vault asset; buy
+  swaps the vault asset into the foreign asset. Verify with `--mode simulate`
+  before executing.
 - **`spot:earn:init` and `spot:earn:extend-lut` are separate operations.**
   Initialization is one transaction; pre-loading the lookup table is its own
-  command (one builder, one operation). Run `spot:earn:extend-lut` after
-  `spot:earn:init` only when the vault uses a lookup table.
+  command. Run `spot:earn:extend-lut` after `spot:earn:init` only when the vault
+  uses a lookup table.
+- **`spot:earn:*` deposit/withdraw act on the vault asset only.**
 - **`spot:query:strategy-positions`** augments each Voltr strategy's position
   value with the strategy's current raw foreign-token balance where available.
-- The `spot:earn:*` deposit/withdraw commands act on the vault asset only.
