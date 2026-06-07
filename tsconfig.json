@@ -1,12 +1,13 @@
 {
-  // Whole-workspace typecheck config. Unlike the per-package build tsconfigs
-  // (which resolve `@voltr/scripts-core` to its built `dist/`), this config maps
-  // the package to its SOURCE so the entire repo — including *.test.ts files —
-  // type-checks in a single pass with no prior build and no network access.
+  // Root config whose only job is to give `tsx` the source `paths` it
+  // auto-discovers from the repo root. That makes bare
+  // `pnpm exec tsx examples/src/<group>/<file>.ts` resolve `@voltr/scripts-*` to
+  // SOURCE with no build — only `pnpm install` is needed. It also gives editors
+  // go-to-source.
   //
-  // The same `paths` are reused at runtime by tsx (via TSX_TSCONFIG_PATH in the
-  // root `test`/`cli` scripts), so tests and the CLI also run straight from
-  // source. See docs/testing.md.
+  // The build/typecheck pipelines never rely on this file: `pnpm typecheck` uses
+  // `-p tsconfig.check.json`, per-package builds use their own `tsconfig.json`,
+  // and the examples typecheck uses `-p examples/tsconfig.json` — all explicit.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,

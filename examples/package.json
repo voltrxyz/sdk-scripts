@@ -1,0 +1,16 @@
+{
+  "name": "@voltr/scripts-examples",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable TypeScript examples for consuming the Voltr sdk-scripts packages programmatically.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@voltr/scripts-core": "workspace:*",
+    "@voltr/scripts-kamino": "workspace:*",
+    "@voltr/scripts-spot": "workspace:*",
+    "@voltr/scripts-trustful": "workspace:*"
+  }
+}

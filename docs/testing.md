@@ -10,36 +10,60 @@ Run from the repo root:
 
 | Command          | What it does                                                                 | Needs build? | Network? |
 | ---------------- | --------------------------------------------------------------------------- | ------------ | -------- |
-| `pnpm typecheck` | Type-checks every package + app **and the test files**, in one pass.        | no           | no       |
-| `pnpm test`      | Runs all `*.test.ts` plus the terminology guard with the Node test runner.  | no           | no       |
+| `pnpm typecheck` | Type-checks every package, app, the examples, **and the test files**.       | no           | no       |
+| `pnpm test`      | Runs all `*.test.ts` with the Node test runner.                             | no           | no       |
 | `pnpm build`     | Compiles every package to `dist/` (topological order).                      | —            | no       |
-| `pnpm check`     | `typecheck` → `build` → `test`. The CI-ready gate.                          | —            | no       |
-| `pnpm check:terminology` | Runs the terminology guard on its own (also part of `pnpm test`).   | no           | no       |
+| `pnpm examples:check` | Typechecks the examples + runs offline runtime checks (help/registry/safety/build). | no | no |
+| `pnpm examples:list` | Prints the example catalog (group, role, network, purpose).           | no           | no       |
+| `pnpm check`     | `typecheck` → `build` → `test` → `examples:check`. The CI-ready gate.       | —            | no       |
 | `pnpm cli -- …`  | Runs the CLI straight from source.                                          | no           | depends¹ |
+| `pnpm example -- <name>` | Runs a programmatic example by name (or `pnpm exec tsx <file>`).      | no           | depends¹ |
 
-¹ The CLI itself only touches the network in `--mode execute`/`simulate`.
-`--mode print` and `--mode multisig` are fully offline.
+¹ `--mode execute`/`simulate` always touch the network; `--mode print` /
+`--mode multisig` are offline. Examples default to `print`; some example builders
+still read accounts in `print` — see [examples/README.md](../examples/README.md).
 
 **Before opening a PR, run `pnpm check`** (or, for a faster inner loop,
 `pnpm typecheck && pnpm test`).
 
-## Terminology guard
+## Examples-workspace check
 
-This workspace is a standalone product: its docs, code, CLI, and tests describe
-current behavior directly. To keep historical porting language from creeping
-back, `scripts/check-terminology.mjs` scans every tracked file (plus new,
-non-ignored files) and fails on case-insensitive historical porting terms — the
-`migrat*` word family and `legacy` paired with `script` or `repo`. The exact
-patterns live in the script; third-party lockfile content is excluded.
+The `examples/` workspace (runnable programmatic examples — see
+[examples/README.md](../examples/README.md)) is verified by `pnpm examples:check`,
+which is part of `pnpm check`. It runs two offline stages:
 
-It runs two ways, both offline:
+1. **`tsc -p examples/tsconfig.json`** — maps `@voltr/scripts-*` to **source**, so
+   the examples type-check against the actual exported APIs with no build. This is
+   the guard that catches drift between an example and a package's public surface.
+2. **`tsx examples/scripts/check.ts`** — offline runtime checks: the registry has
+   unique names resolving to real modules; every example renders `--help` with no
+   network or keypair; transaction examples default to `print` (none default to
+   `execute`); offline-capable examples build a valid `BuiltOperation` against a
+   fake RPC + generated signers (`assertBuiltOperationShape`); and no example
+   source contains hard-coded keypair material or absolute developer paths.
 
-- as a `node:test` case under `pnpm test` (so `pnpm check` enforces it), and
-- standalone via `pnpm check:terminology`.
+Examples resolve the workspace packages to source the same way the CLI does: the
+repo-root [`tsconfig.json`](../tsconfig.json) supplies the `paths` mapping `tsx`
+auto-discovers, so bare `pnpm exec tsx examples/src/<group>/<file>.ts` (and
+`pnpm example` / `pnpm examples:list`) run from source with no build — only
+`pnpm install` is needed.
 
-If it fails, rewrite the flagged line to state the current invariant or behavior;
-keep implementation provenance in Git history and the issue tracker, not in
-shipped files.
+### How examples run, and the network boundary
+
+Each example is one file per action, run directly (`pnpm exec tsx <file>`) or by
+name (`pnpm example -- <name>`). Config comes from flags (`--profile`, `--mode`,
+`--rpc-url`, `--multisig-address`, `--yes`) or the equivalent env vars
+(`VOLTR_PROFILE`, `VOLTR_MODE`, `RPC_URL`, `VOLTR_MULTISIG_ADDRESS`,
+`VOLTR_CONFIRM`) — a flag overrides its env var; both fall back to defaults so a
+bare run works. Keypairs come from `<ROLE>_KEYPAIR`. They default to `print` and
+gate `execute` behind a confirmation (`--yes` / `VOLTR_CONFIRM=1`).
+
+The runtime check above only exercises offline builders (fake RPC, generated
+signers). Actually running an example needs a configured profile + RPC (and a
+keypair for transaction examples); some builders decode on-chain state or call
+Jupiter even in `print`, so they need a working RPC to preview. `--mode execute`,
+a live Jupiter swap, and the Kamino market/kvault flows are exercised manually,
+not by `pnpm check`.
 
 ## Everything offline runs from source — no build step
 
@@ -100,6 +124,7 @@ Current coverage:
 | Vault builder output shape   | `packages/core/src/vault/operations.test.ts`  |
 | CLI help/argument validation | `apps/cli/src/index.test.ts`                  |
 | Adapter builder smoke tests  | `packages/{kamino,spot,trustful}/src/operations/*.test.ts` |
+| Examples workspace (offline) | `examples/scripts/check.ts` + `examples/tsconfig.json` (`pnpm examples:check`) |
 
 ## Adding an adapter builder test
 

@@ -13,6 +13,12 @@ For runnable end-to-end workflows (always preview with `--mode print` /
 Run `pnpm cli -- <command> --help` for the exact flags and defaults of any
 command.
 
+Embedding the Kamino builders in your own code instead? See the per-action
+programmatic examples under [`examples/src/kamino/`](../examples/src/kamino) —
+`market-{init,deposit,withdraw,claim-reward}` and
+`kvault-{init,deposit,withdraw,claim-reward,direct-withdraw,request-and-direct-withdraw}`,
+catalogued in [examples/README.md](../examples/README.md).
+
 ## Commands
 
 | Command | Role | Strategy field |

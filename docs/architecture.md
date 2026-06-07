@@ -20,6 +20,7 @@ packages/core/         # Shared env, profile, signer, tx, LUT, token, vault help
 packages/kamino/       # Kamino-specific operation builders + queries
 packages/spot/         # Spot/Jupiter-specific operation builders + queries
 packages/trustful/     # Trustful-specific operation builders + queries
+examples/              # Runnable programmatic examples (public-API consumers)
 configs/examples/      # JSON profile examples
 docs/                  # Architecture contract + per-integration references
 ```
@@ -85,6 +86,34 @@ The CLI must stay thin. Each command is "parse flags → coerce values → call 
   - `parse.ts` — flag coercion every command shares: `parseAmount`, `parseBps`, `parseU16`, `parseCount`, `parseIndex`, and `parseAddress`. Each takes the raw value plus the flag name and throws a `CliError` that names the flag. Do not re-implement amount / basis-point / index / count / address parsing inside a command module.
   - `output.ts` — formatting helpers for non-transaction output (summaries, queries).
   - `errors.ts` — `CliError` (user-facing, no stack trace) and the top-level `reportError` handler.
+
+### `examples` (`@voltr/scripts-examples`)
+
+Runnable TypeScript examples that demonstrate the **public** programmatic API for
+SDK consumers (see [examples/README.md](../examples/README.md)). They are a
+parallel consumer of the packages, not part of the CLI.
+
+- Examples import only documented package entry points — `@voltr/scripts-core`,
+  `@voltr/scripts-kamino`, `@voltr/scripts-spot`, `@voltr/scripts-trustful`. They
+  MUST NOT import private source paths (`packages/*/src/*`, `apps/cli/src/*`). If
+  an example cannot be written without a private import, add a deliberate public
+  export to the package (with a focused test) instead.
+- Like the CLI, an example is "load profile → call builder → hand the
+  `BuiltOperation` to `processOperation`". It must not re-implement builder logic
+  or duplicate CLI command modules.
+- Examples are not a second operator command surface. Each is one self-contained
+  file for one action, run directly with `pnpm exec tsx examples/src/<group>/<file>.ts`
+  or by name with `pnpm example -- <name>` (`pnpm examples:list` catalogs them).
+  Both run with no arguments — config falls back to env vars (`VOLTR_PROFILE`,
+  `VOLTR_MODE`, `RPC_URL`, `<ROLE>_KEYPAIR`), each with an equivalent flag
+  (`--profile`, `--mode`, …) that overrides it; per-run values (amounts, rates)
+  are constants at the top of the file.
+- The shared harness lives under `examples/src/shared/` (parses flags, loads the
+  profile, builds the RPC context, loads signers, processes the operation);
+  `examples/src/registry.ts` holds the catalog metadata. `pnpm examples:check`
+  typechecks the workspace against the real package exports (the drift guard) and
+  runs offline runtime checks (registry/help/safety/offline-build); it is part of
+  `pnpm check` (see [docs/testing.md](./testing.md)).
 
 ## Adapter package standard
 

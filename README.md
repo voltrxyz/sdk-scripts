@@ -92,13 +92,23 @@ RPC_URL="https://your-rpc" USER_KEYPAIR=/path/to/user.json pnpm cli -- \
   [Spot](./docs/spot.md), [Trustful](./docs/trustful.md), and
   [adaptor administration](./docs/adaptor-admin.md).
 
+**Developers embedding the packages (SDK consumers):**
+
+- **[examples/README.md](./examples/README.md)** — runnable TypeScript examples
+  for calling the operation builders and queries directly from your own code,
+  inspecting a `BuiltOperation`, and routing it through the shared transaction
+  processor. One file per action; browse them with `pnpm examples:list` and run
+  any with no arguments, e.g. `pnpm exec tsx examples/src/vault/deposit.ts` (or
+  `pnpm example -- vault:deposit`). This is the programmatic path; the CLI above
+  remains the primary interface for routine vault-manager operations.
+
 **Contributors:**
 
 - **[docs/architecture.md](./docs/architecture.md)** — package responsibilities,
   the operation-builder contract, command naming, the web3.js compatibility
   boundary, and the recipe for adding a new operation or integration.
 - **[docs/testing.md](./docs/testing.md)** — the offline checks (`pnpm check`),
-  how to add an adapter builder test, and the terminology guard.
+  how to add an adapter builder test, and the examples-workspace checks.
 
 ## Discovering commands
 

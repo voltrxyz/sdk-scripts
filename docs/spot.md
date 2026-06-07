@@ -12,6 +12,12 @@ For runnable end-to-end workflows (always preview with `--mode print` /
 [Spot buy/sell & Earn flows](./operator-guide.md#spot-buysell--earn-flows). Run
 `pnpm cli -- <command> --help` for the exact flags and defaults of any command.
 
+Embedding the Spot builders in your own code instead? See the per-action
+programmatic examples under [`examples/src/spot/`](../examples/src/spot) —
+`swap-{init,buy,sell}`, `earn-{init,deposit,withdraw,extend-lut,init-direct-withdraw}`,
+and `query-strategy-positions`, catalogued in
+[examples/README.md](../examples/README.md).
+
 ## Commands
 
 | Command | Role |
