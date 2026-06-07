@@ -14,18 +14,17 @@ import type { BuiltOperation, ScriptContext } from "../types.js";
  * Generic adaptor-administration builders.
  *
  * Adding/removing an adaptor and initializing a direct-withdraw strategy are
- * vault-level operations: every legacy `admin-add-adaptor.ts` script (Kamino,
- * Spot, Trustful) was byte-for-byte identical except for the adaptor program ID
- * constant it imported, and the instructions come from the base
- * `@voltr/vault-sdk` — not from any adapter SDK. So they live here in core and
- * take `adaptorProgram` (and, for direct-withdraw, `strategy` + the adaptor's
- * `instructionDiscriminator`) as parameters. No adapter program ID is hardcoded
- * in core; the caller passes the adapter package's exported constant (e.g.
- * `KAMINO_ADAPTOR_PROGRAM_ID`, `SPOT_ADAPTOR_PROGRAM_ID`,
- * `TRUSTFUL_ADAPTOR_PROGRAM_ID`) or a profile value.
+ * vault-level operations whose instructions come from the base
+ * `@voltr/vault-sdk`, not from any adapter SDK. They are identical for every
+ * adapter (Kamino, Spot, Trustful) apart from the adaptor program ID, so they
+ * live here in core and take `adaptorProgram` (and, for direct-withdraw,
+ * `strategy` + the adaptor's `instructionDiscriminator`) as parameters. No
+ * adapter program ID is hardcoded in core; the caller passes the adapter
+ * package's exported constant (e.g. `KAMINO_ADAPTOR_PROGRAM_ID`,
+ * `SPOT_ADAPTOR_PROGRAM_ID`, `TRUSTFUL_ADAPTOR_PROGRAM_ID`) or a profile value.
  *
  * See docs/adaptor-admin.md for the generic-vs-adapter-specific split and the
- * proposed CLI command names.
+ * CLI command surface.
  */
 
 export interface AddAdaptorArgs {
@@ -39,17 +38,16 @@ export interface AddAdaptorArgs {
 
 /**
  * `vault:add-adaptor` — register an adaptor program on a vault so the manager can
- * later route strategy CPIs through it. Ports the shared `admin-add-adaptor.ts`
- * script (identical across Kamino/Spot/Trustful bar the program ID).
+ * later route strategy CPIs through it. Adapter-agnostic: pass the adaptor
+ * program ID (and, optionally, the vault's lookup table).
  *
- * NOTE: the legacy script optionally extended a lookup table with this
- * instruction's accounts in a *second* transaction. That LUT population is
- * multi-transaction orchestration, which the operation-builder contract defers
- * to the CLI/processor layer (docs/architecture.md rule 8 — same deferral as
- * `buildInitVaultOperation`). The building blocks live in core
- * (`buildExtendLookupTableInstructions`, `collectInstructionAddresses`). Passing
- * an *existing* LUT to compile this transaction against is supported via
- * `lookupTableAddresses`.
+ * This builds only the add-adaptor transaction. Pre-loading a lookup table with
+ * this instruction's accounts is multi-transaction orchestration, which the
+ * operation-builder contract defers to the CLI/processor layer
+ * (docs/architecture.md rule 8 — same as `buildInitVaultOperation`). The building
+ * blocks live in core (`buildExtendLookupTableInstructions`,
+ * `collectInstructionAddresses`). Compiling this transaction against an
+ * *existing* LUT is supported via `lookupTableAddresses`.
  */
 export async function buildAddAdaptorOperation(
   _ctx: ScriptContext,
@@ -79,9 +77,8 @@ export interface RemoveAdaptorArgs {
 }
 
 /**
- * `vault:remove-adaptor` — deregister an adaptor program from a vault. Ports
- * `admin-remove-adaptor.ts` (only Trustful shipped this script, but the
- * instruction is a generic vault primitive that applies to any adaptor).
+ * `vault:remove-adaptor` — deregister an adaptor program from a vault. A generic
+ * vault primitive that applies to any adaptor.
  */
 export async function buildRemoveAdaptorOperation(
   _ctx: ScriptContext,
@@ -115,21 +112,20 @@ export interface InitDirectWithdrawStrategyArgs {
   adaptorProgram: Address;
   /**
    * The adaptor instruction the direct-withdraw flow invokes, as an 8-byte
-   * discriminator. Per-deployment value (the legacy `directWithdrawDiscriminator`
-   * config). Accepts a `Uint8Array` or a plain number array; copied before use.
+   * discriminator. A per-deployment value. Accepts a `Uint8Array` or a plain
+   * number array; copied before use.
    */
   instructionDiscriminator: ReadonlyUint8Array | readonly number[];
-  /** Extra adaptor args forwarded to the instruction. Legacy scripts passed none. */
+  /** Extra adaptor args forwarded to the instruction. Defaults to none. */
   additionalArgs?: ReadonlyUint8Array | null;
-  /** Whether the direct-withdraw flow accepts caller-supplied args. Legacy: false. */
+  /** Whether the direct-withdraw flow accepts caller-supplied args. Defaults to false. */
   allowUserArgs?: boolean;
   lookupTableAddresses?: Address[];
 }
 
 /**
  * `vault:init-direct-withdraw` — register a direct-withdraw strategy on the
- * vault, binding it to an adaptor instruction discriminator. Ports the shared
- * `admin-init-direct-withdraw.ts` script.
+ * vault, binding it to an adaptor instruction discriminator.
  *
  * Generic across adapters: the only adapter-specific input is `strategy` (and
  * the per-deployment `instructionDiscriminator`), both passed in. Kamino can call

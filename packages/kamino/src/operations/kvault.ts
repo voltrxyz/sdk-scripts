@@ -55,8 +55,8 @@ export interface KaminoKvaultInitArgs {
 }
 
 /**
- * `kamino:kvault:init` — initialize a Voltr strategy backed by a Kamino vault.
- * Migrated from `manager-initialize-kvault.ts`.
+ * `kamino:kvault:init` — initialize a Voltr strategy backed by a Kamino vault
+ * (kvault). The manager signs and pays; the kvault address is the strategy id.
  */
 export async function buildKaminoKvaultInitOperation(
   ctx: ScriptContext,
@@ -130,7 +130,7 @@ export interface KaminoKvaultDepositArgs {
 
 /**
  * `kamino:kvault:deposit` — deposit vault assets into a Kamino vault via the
- * Voltr Kamino adaptor. Migrated from `manager-deposit-kvault.ts`.
+ * Voltr Kamino adaptor. The manager signs; `amount` is the raw asset amount.
  */
 export async function buildKaminoKvaultDepositOperation(
   ctx: ScriptContext,
@@ -206,7 +206,7 @@ export interface KaminoKvaultWithdrawArgs {
 
 /**
  * `kamino:kvault:withdraw` — withdraw vault assets from a Kamino vault via the
- * Voltr Kamino adaptor. Migrated from `manager-withdraw-kvault.ts`.
+ * Voltr Kamino adaptor. The manager signs; pass a large `amount` to withdraw all.
  */
 export async function buildKaminoKvaultWithdrawOperation(
   ctx: ScriptContext,
@@ -295,13 +295,13 @@ export interface KaminoKvaultClaimRewardArgs {
 }
 
 /**
- * `kamino:kvault:claim-reward` — claim a Kamino vault farm reward into the
- * vault asset for one farm. Migrated from `manager-claim-kvault-rewards.ts` and
- * `manager-claim-kvault-rewards-with-index.ts` (via the optional `rewardIndex`).
+ * `kamino:kvault:claim-reward` — claim a Kamino vault farm reward into the vault
+ * asset for one farm. Passing `rewardIndex` selects a specific reward slot and
+ * switches to the `-with-index` adaptor discriminator (and command label).
  *
  * This operates on a single, already-resolved farm/reward. Discovering the
  * claimable farms (farms SDK) and building the Jupiter route are CLI-layer
- * concerns; see the migration docs.
+ * concerns; see docs/kamino.md.
  */
 export async function buildKaminoKvaultClaimRewardOperation(
   ctx: ScriptContext,
@@ -418,7 +418,7 @@ export interface KaminoKvaultDirectWithdrawArgs {
 
 /**
  * `kamino:kvault:direct-withdraw` — a user directly withdraws their share of a
- * Kamino vault (kvault) strategy. Migrated from `user-direct-withdraw-strategy.ts`.
+ * Kamino vault (kvault) strategy. The user signs as the withdraw authority.
  */
 export async function buildKaminoKvaultDirectWithdrawOperation(
   ctx: ScriptContext,
@@ -503,7 +503,7 @@ export interface KaminoKvaultRequestAndDirectWithdrawArgs {
 /**
  * `kamino:kvault:request-and-direct-withdraw` — request a vault withdrawal and
  * directly withdraw from the Kamino vault (kvault) strategy in one transaction.
- * Migrated from `user-request-and-direct-withdraw-strategy.ts`.
+ * The user signs as payer and withdraw authority.
  */
 export async function buildKaminoKvaultRequestAndDirectWithdrawOperation(
   ctx: ScriptContext,

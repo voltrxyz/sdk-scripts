@@ -1,7 +1,7 @@
 # Testing and automated checks
 
-This repo ships lightweight, **offline** checks so a migration agent can verify a
-change without a live RPC, keypair files, or mainnet execution. Run them before
+This repo ships lightweight, **offline** checks so a change can be verified
+without a live RPC, keypair files, or mainnet execution. Run them before
 opening a PR.
 
 ## Commands
@@ -11,9 +11,10 @@ Run from the repo root:
 | Command          | What it does                                                                 | Needs build? | Network? |
 | ---------------- | --------------------------------------------------------------------------- | ------------ | -------- |
 | `pnpm typecheck` | Type-checks every package + app **and the test files**, in one pass.        | no           | no       |
-| `pnpm test`      | Runs all `*.test.ts` with the Node test runner (`node:test`).               | no           | no       |
+| `pnpm test`      | Runs all `*.test.ts` plus the terminology guard with the Node test runner.  | no           | no       |
 | `pnpm build`     | Compiles every package to `dist/` (topological order).                      | —            | no       |
 | `pnpm check`     | `typecheck` → `build` → `test`. The CI-ready gate.                          | —            | no       |
+| `pnpm check:terminology` | Runs the terminology guard on its own (also part of `pnpm test`).   | no           | no       |
 | `pnpm cli -- …`  | Runs the CLI straight from source.                                          | no           | depends¹ |
 
 ¹ The CLI itself only touches the network in `--mode execute`/`simulate`.
@@ -21,6 +22,24 @@ Run from the repo root:
 
 **Before opening a PR, run `pnpm check`** (or, for a faster inner loop,
 `pnpm typecheck && pnpm test`).
+
+## Terminology guard
+
+This workspace is a standalone product: its docs, code, CLI, and tests describe
+current behavior directly. To keep historical porting language from creeping
+back, `scripts/check-terminology.mjs` scans every tracked file (plus new,
+non-ignored files) and fails on case-insensitive historical porting terms — the
+`migrat*` word family and `legacy` paired with `script` or `repo`. The exact
+patterns live in the script; third-party lockfile content is excluded.
+
+It runs two ways, both offline:
+
+- as a `node:test` case under `pnpm test` (so `pnpm check` enforces it), and
+- standalone via `pnpm check:terminology`.
+
+If it fails, rewrite the flagged line to state the current invariant or behavior;
+keep implementation provenance in Git history and the issue tracker, not in
+shipped files.
 
 ## Everything offline runs from source — no build step
 
@@ -52,8 +71,7 @@ file. `createScriptContext`'s RPC-precedence test sets and restores
 
 ### What the checks intentionally do **not** cover
 
-These need live infrastructure and are out of scope for automated checks (see
-VOL-231 "Out of Scope"):
+These need live infrastructure and are out of scope for automated checks:
 
 - `--mode execute` (sends and confirms a real transaction).
 - `--mode simulate` against a real RPC.
@@ -95,9 +113,8 @@ Test helpers live in `@voltr/scripts-core/testing`:
   `BuiltOperation` contract (non-empty label, well-formed kit instructions,
   correctly-typed optional fields).
 
-Each adapter builder should have an offline smoke test. For not-yet-migrated
-builders, assert that the stub rejects clearly. When you implement a builder,
-swap the stub assertion for an output-shape check:
+Each adapter builder should have an offline smoke test that asserts its output
+shape:
 
 ```ts
 import { test } from "node:test";

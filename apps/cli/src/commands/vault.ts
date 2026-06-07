@@ -137,8 +137,8 @@ interface InitConfigOptions {
 
 /**
  * Vault-initialization flags shared by both init commands. The fee, duration,
- * and timestamp fields default to 0 (matching the legacy config defaults), so a
- * minimal init only needs `--manager`, `--name`, and `--max-cap`.
+ * and timestamp fields default to 0, so a minimal init only needs `--manager`,
+ * `--name`, and `--max-cap`.
  */
 function addInitConfigOptions(command: Command): Command {
   return command
@@ -817,7 +817,7 @@ function printVaultAddress(vault: Address): void {
   );
 }
 
-// --- adaptor administration (generic across adapters, VOL-224) ---
+// --- adaptor administration (generic across adapters) ---
 
 type AdaptorToggleArgs = {
   admin: KeyPairSigner;
@@ -835,8 +835,8 @@ type AdaptorToggleBuilder = (
  * Register `vault:add-adaptor` / `vault:remove-adaptor`. Both register or
  * deregister an adaptor program on the vault and share the same flags (admin
  * signer + optional `--adaptor-program`), differing only by command name and
- * builder. The adaptor program defaults to Kamino for VOL-228 and may be
- * overridden for Spot, Trustful, or another adaptor.
+ * builder. The adaptor program defaults to Kamino and may be overridden for
+ * Spot, Trustful, or another adaptor.
  */
 function registerAdaptorToggle(
   program: Command,
@@ -934,7 +934,7 @@ function registerAdaptorAdminCommands(program: Command): void {
     )
     .option(
       "--allow-user-args",
-      "allow caller-supplied args in the direct-withdraw flow (legacy default: off)"
+      "allow caller-supplied args in the direct-withdraw flow (default: off)"
     )
     .action(
       async (options: {

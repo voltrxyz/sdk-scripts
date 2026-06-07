@@ -15,8 +15,8 @@ const addressEncoder = getAddressEncoder();
 
 /**
  * The set of accounts every Trustful strategy operation derives from a vault +
- * strategy seed. Mirrors the `PublicKey.findProgramAddressSync` /
- * `findVaultStrategyAuthPda` derivations the legacy scripts repeated inline.
+ * strategy seed, centralizing the `findVaultStrategyAuthPda` and adaptor PDA
+ * derivations each operation needs.
  */
 export interface TrustfulStrategyAccounts {
   /** The adaptor strategy account (PDA of the seed under the adaptor program). */

@@ -61,9 +61,7 @@ export interface SpotSwapArgs {
 /**
  * `spot:swap:init` — initialize a Spot strategy whose `strategy` address is the
  * foreign mint. Creates the strategy auth's asset and foreign token accounts and
- * registers both Pyth oracle init receipts.
- *
- * Migrated from `manager-initialize-spot.ts`.
+ * registers both Pyth oracle init receipts. The manager signs and pays.
  */
 export async function buildSpotSwapInitOperation(
   ctx: ScriptContext,
@@ -238,9 +236,7 @@ async function buildSpotSwapDirectionOperation(
 
 /**
  * `spot:swap:buy` — deposit `amount` of the vault asset into the Spot strategy,
- * swapping it to the foreign asset through Jupiter.
- *
- * Migrated from `manager-buy-spot.ts`.
+ * swapping it to the foreign asset through Jupiter. The manager signs.
  */
 export function buildSpotSwapBuyOperation(
   ctx: ScriptContext,
@@ -251,13 +247,8 @@ export function buildSpotSwapBuyOperation(
 
 /**
  * `spot:swap:sell` — withdraw `amount` of the foreign asset from the Spot
- * strategy, swapping it back to the vault asset through Jupiter.
- *
- * Migrated from `manager-sell-spot.ts`. NOTE: the legacy script passed `amountIn
- * = 0` to its Jupiter helper (and the asset→foreign direction), so it never
- * actually built a swap. This builder implements the intended behavior — a
- * foreign→asset swap of `amount` — so that sell is symmetric with buy and
- * produces working swap data.
+ * strategy, swapping it back to the vault asset through Jupiter. The manager
+ * signs. Symmetric with `spot:swap:buy`: a foreign→asset swap of `amount`.
  */
 export function buildSpotSwapSellOperation(
   ctx: ScriptContext,

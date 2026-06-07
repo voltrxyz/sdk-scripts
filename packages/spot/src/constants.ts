@@ -51,5 +51,5 @@ export const SPOT_DISCRIMINATOR = {
   WITHDRAW_JUPITER_EARN: [232, 204, 244, 40, 201, 192, 7, 194],
 } as const satisfies Record<string, readonly number[]>;
 
-// Default Jupiter swap API base. The legacy scripts used the lite (keyless) host.
+// Default Jupiter swap API base: the lite (keyless) host.
 export const JUPITER_SWAP_API_BASE = "https://lite-api.jup.ag/swap/v1";

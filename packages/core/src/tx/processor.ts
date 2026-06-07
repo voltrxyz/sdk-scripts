@@ -55,9 +55,9 @@ function runPrintMode(operation: BuiltOperation): ProcessResult {
 
 /**
  * Print a builder's structured {@link BuiltOperation.metadata} (e.g. the
- * Trustful "withdrawal holding account") so important operator-facing values the
- * legacy scripts used to `console.log` survive the migration. Side-effect free
- * and independent of the `ProcessResult` shape.
+ * Trustful "withdrawal holding account") so operator-facing values a builder
+ * surfaces are visible without coupling the builder to `console.log`.
+ * Side-effect free and independent of the `ProcessResult` shape.
  */
 function logOperationMetadata(operation: BuiltOperation): void {
   if (!operation.metadata) return;
