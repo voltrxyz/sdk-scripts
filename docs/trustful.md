@@ -14,6 +14,11 @@ operator guide's
 [Trustful arbitrary & curve flows](./operator-guide.md#trustful-arbitrary--curve-flows).
 Run `pnpm cli -- <command> --help` for the exact flags of any command.
 
+Embedding the Trustful builders in your own code instead? See the per-action
+programmatic examples under [`examples/src/trustful/`](../examples/src/trustful) —
+`arbitrary-{init,deposit,withdraw}` and `curve-{init,borrow,repay,remove}`,
+catalogued in [examples/README.md](../examples/README.md).
+
 ## Commands
 
 | Command | Notes |

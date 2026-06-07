@@ -8,6 +8,12 @@ fields, see [kamino.md](./kamino.md), [spot.md](./spot.md), and
 [trustful.md](./trustful.md); for the package design, see
 [architecture.md](./architecture.md).
 
+The CLI is the primary, recommended interface for vault managers and operators —
+this guide covers it end to end. If instead you are a developer embedding the
+operation builders in your own code (services, automation, custom transaction
+pipelines), see the complementary programmatic
+[examples](../examples/README.md); they are not a second operator CLI.
+
 All examples use **neutral placeholders** — a `configs/my-vault.json` profile, a
 generic USDC asset, `<...>` for addresses, and `/path/to/<role>.json` for
 keypairs. Substitute your own values.

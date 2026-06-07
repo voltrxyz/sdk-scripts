@@ -1,0 +1,19 @@
+{
+  // Examples-workspace typecheck config. Like the root tsconfig.check.json, it
+  // maps every `@voltr/scripts-*` package to its SOURCE so the examples
+  // type-check against the actual exported APIs with no prior build — this is
+  // what `pnpm examples:check` relies on to catch drift between an example and a
+  // package's public surface.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@voltr/scripts-core": ["../packages/core/src/index.ts"],
+      "@voltr/scripts-core/testing": ["../packages/core/src/testing.ts"],
+      "@voltr/scripts-kamino": ["../packages/kamino/src/index.ts"],
+      "@voltr/scripts-spot": ["../packages/spot/src/index.ts"],
+      "@voltr/scripts-trustful": ["../packages/trustful/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*", "scripts/**/*"]
+}
