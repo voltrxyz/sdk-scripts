@@ -22,6 +22,7 @@ export function createProgram(): Command {
         "Voltr vault and integration operations.",
         "",
         "Command groups:",
+        "  protocol:*  protocol admin operations",
         "  vault:*     shared Voltr vault operations",
         "  kamino:*    Kamino market / kvault strategies",
         "  spot:*      Spot / Earn strategies",

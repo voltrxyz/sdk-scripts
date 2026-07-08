@@ -72,8 +72,8 @@ importers:
         specifier: ^6.8.0
         version: 6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@voltr/vault-sdk':
-        specifier: ^2.0.0
-        version: 2.1.0(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
+        specifier: ^2.1.1
+        version: 2.1.1(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
       dotenv:
         specifier: ^16.5.0
         version: 16.6.1
@@ -96,8 +96,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       '@voltr/vault-sdk':
-        specifier: ^2.0.0
-        version: 2.1.0(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
+        specifier: ^2.1.1
+        version: 2.1.1(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
 
   packages/spot:
     dependencies:
@@ -114,8 +114,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       '@voltr/vault-sdk':
-        specifier: ^2.0.0
-        version: 2.1.0(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
+        specifier: ^2.1.1
+        version: 2.1.1(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
 
   packages/trustful:
     dependencies:
@@ -129,8 +129,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       '@voltr/vault-sdk':
-        specifier: ^2.0.0
-        version: 2.1.0(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
+        specifier: ^2.1.1
+        version: 2.1.1(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
 
 packages:
 
@@ -1163,8 +1163,8 @@ packages:
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
-  '@voltr/vault-sdk@2.1.0':
-    resolution: {integrity: sha512-LdV2MzuGC1gqe/1e5DGgjFAnPkEJJXjjTZ8EOQAr0Bwb9pZ0rJJSL7QRwS0LJTBCaaoIjqoGZC8RRLnk3LlJPg==}
+  '@voltr/vault-sdk@2.1.1':
+    resolution: {integrity: sha512-FnNAgcF0hLdSpr7tlx1sK6/HNLQIvIoMxyRk3ZyJcjiSaVz9g0tY2SG2m7xRURWDAN5LqUSbuHVZLWf9BeHKOw==}
     peerDependencies:
       '@solana/kit': ^6.1.0
 
@@ -3035,7 +3035,7 @@ snapshots:
     dependencies:
       '@types/node': 22.19.19
 
-  '@voltr/vault-sdk@2.1.0(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)':
+  '@voltr/vault-sdk@2.1.1(@solana/kit@6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)':
     dependencies:
       '@solana/kit': 6.9.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
       '@solana/program-client-core': 6.9.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)

@@ -86,7 +86,7 @@ command fails up front, naming both:
 
 | Role | Flag | Env var | Used by |
 | --- | --- | --- | --- |
-| `admin` | `--admin-keypair` | `ADMIN_KEYPAIR` | `vault:init*`, metadata, config, adaptor admin, harvest-fee |
+| `admin` | `--admin-keypair` | `ADMIN_KEYPAIR` | vault admin commands and protocol admin commands |
 | `manager` | `--manager-keypair` | `MANAGER_KEYPAIR` | strategy operations (Kamino/Spot/Trustful, claims) |
 | `user` | `--user-keypair` | `USER_KEYPAIR` | deposit/withdraw, direct-withdraw |
 
@@ -146,8 +146,10 @@ operation; `check` is the only fully offline command.
 | `multisig` | No | none | Emits a base64 + base58 transaction message (compute-budget stripped) to import into a multisig (e.g. Squads) for the named on-chain signer. Nothing is sent. |
 | `execute` | **Yes** | send + confirm | Signs with the role keypair, sends, confirms; prints the signature and compute units consumed. |
 
-All four modes resolve a role keypair and an RPC URL up front (the build needs
-them); `multisig` additionally requires `--multisig-address`.
+Most transaction commands resolve a role keypair and an RPC URL up front (the
+build needs them); `multisig` additionally requires `--multisig-address`.
+Protocol admin commands in `multisig` mode use `--multisig-address` as the
+protocol admin signer account and do not load `ADMIN_KEYPAIR`.
 
 **Recommended workflow — never `execute` blind:**
 
@@ -247,10 +249,44 @@ pnpm cli -- --profile configs/my-vault.json --mode execute \
 # Accept a pending admin transfer (the pending admin signs):
 pnpm cli -- --profile configs/my-vault.json --mode execute vault:accept-admin
 
-# Harvest accrued fees to the manager:
+# Harvest accrued fees to the manager and protocol treasury:
 pnpm cli -- --profile configs/my-vault.json --mode execute \
   vault:harvest-fee --manager <MANAGER_PUBKEY>
 ```
+
+### Protocol admin operations
+
+Protocol admin commands sign with `--admin-keypair` / `ADMIN_KEYPAIR`, but the
+key must be the protocol admin, not the vault admin. These commands mutate the
+protocol PDA or a protocol-admin-controlled field on a vault.
+
+If the protocol admin is a multisig PDA, use `--mode multisig
+--multisig-address <PROTOCOL_ADMIN_PDA>`; the command will put that PDA in the
+protocol admin signer account and print the payload to import into the multisig.
+
+```bash
+# Set the protocol treasury that receives the protocol fee share:
+pnpm cli -- --profile configs/my-vault.json --mode execute \
+  protocol:update-treasury --treasury <TREASURY_PUBKEY>
+
+# Allow one vault to add adaptor programs outside the protocol allowlist:
+pnpm cli -- --profile configs/my-vault.json --mode execute \
+  vault:update-adaptor-policy --allow-any-adaptor 1
+
+# Re-enable the allowlist for future adaptor additions:
+pnpm cli -- --profile configs/my-vault.json --mode execute \
+  vault:update-adaptor-policy --allow-any-adaptor 0
+
+# Transfer protocol admin in two steps:
+pnpm cli -- --profile configs/my-vault.json --mode execute \
+  protocol:set-pending-admin --pending-admin <NEW_PROTOCOL_ADMIN_PUBKEY>
+pnpm cli -- --profile configs/my-vault.json --mode execute \
+  protocol:accept-admin
+```
+
+Setting `--allow-any-adaptor 0` only blocks future unlisted adaptor additions.
+Adaptor receipts created while the flag was `1` remain registered until the vault
+admin removes them with `vault:remove-adaptor`.
 
 ### Deposit / withdraw (user)
 

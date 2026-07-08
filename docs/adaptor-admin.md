@@ -13,6 +13,12 @@ These are admin-signed, one-time setup steps. For runnable examples, see the
 operator guide's [Add an adapter](./operator-guide.md#add-an-adapter); run `pnpm
 cli -- <command> --help` for exact flags.
 
+The protocol admin can set a per-vault adaptor-policy override with
+`vault:update-adaptor-policy --allow-any-adaptor 1`. When enabled, that vault can
+add adaptor programs outside the built-in allowlist. Setting it back to `0`
+restores the allowlist for future additions but does not remove adaptor receipts
+created while the override was enabled.
+
 ## Where each input comes from
 
 | Command | Adaptor program | Strategy | Discriminator |
@@ -23,9 +29,12 @@ cli -- <command> --help` for exact flags.
 | `spot:earn:init-direct-withdraw` | Spot adaptor (built in) | derived Jupiter `lending` PDA (built in) | `integrations.spot.directWithdrawDiscriminator` |
 
 In all cases the **admin** signer comes from `--admin-keypair` / `ADMIN_KEYPAIR`.
-The adaptor program IDs ship with the CLI, so `--adaptor-program` only needs to
-be passed to override the Kamino default (the Spot and Trustful program IDs are
-documented in [spot.md](./spot.md) and [trustful.md](./trustful.md)).
+For `vault:add-adaptor`, `vault:remove-adaptor`, and
+`vault:init-direct-withdraw`, that admin is the vault admin. For
+`vault:update-adaptor-policy`, that admin is the protocol admin. The adaptor
+program IDs ship with the CLI, so `--adaptor-program` only needs to be passed to
+override the Kamino default (the Spot and Trustful program IDs are documented in
+[spot.md](./spot.md) and [trustful.md](./trustful.md)).
 
 The one genuinely adapter-specific case is **Spot's direct-withdraw strategy**:
 its strategy is the Jupiter `lending` PDA derived from the vault asset mint, so

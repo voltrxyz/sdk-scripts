@@ -21,6 +21,6 @@
     "@solana-program/token": "^0.13.0",
     "@solana/kit": "^6.8.0",
     "@voltr/scripts-core": "workspace:*",
-    "@voltr/vault-sdk": "^2.0.0"
+    "@voltr/vault-sdk": "^2.1.1"
   }
 }

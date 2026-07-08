@@ -73,6 +73,7 @@ RPC_URL="https://your-rpc" USER_KEYPAIR=/path/to/user.json pnpm cli -- \
 
 | Integration | Command groups | Reference |
 | --- | --- | --- |
+| Protocol admin | `protocol:*`, `vault:update-adaptor-policy` | [operator guide](./docs/operator-guide.md) |
 | Voltr vault (core) | `vault:*` | [operator guide](./docs/operator-guide.md) |
 | Kamino | `kamino:market:*`, `kamino:kvault:*` | [docs/kamino.md](./docs/kamino.md) |
 | Spot (Jupiter swap + Earn) | `spot:swap:*`, `spot:earn:*` | [docs/spot.md](./docs/spot.md) |
@@ -120,8 +121,8 @@ pnpm cli -- --help                 # global options + all command groups
 pnpm cli -- vault:deposit --help   # flags for a single command
 ```
 
-Commands are grouped by `<group>:*` prefix (`vault:`, `kamino:`, `spot:`,
-`trustful:`, plus the maintenance command `check`). Every command takes the
+Commands are grouped by `<group>:*` prefix (`protocol:`, `vault:`, `kamino:`,
+`spot:`, `trustful:`, plus the maintenance command `check`). Every command takes the
 global options (`--profile`, `--rpc-url`, `--mode`, priority-fee flags); the
 [operator guide](./docs/operator-guide.md) explains what each option does and
 walks through the common workflows.

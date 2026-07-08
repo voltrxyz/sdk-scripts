@@ -1,8 +1,10 @@
 export {
   address,
+  createNoopSigner,
   generateKeyPairSigner,
   type Address,
   type KeyPairSigner,
+  type TransactionSigner,
 } from "@solana/kit";
 // Shared vault PDA derivation. Re-exported so callers (e.g. the CLI, when it
 // needs the vault-strategy authority as a swap signer) derive this vault
@@ -23,6 +25,7 @@ export * from "./tx/send.js";
 export * from "./tx/simulate.js";
 export * from "./vault/constants.js";
 export * from "./vault/config.js";
+export * from "./vault/protocol.js";
 export * from "./vault/operations.js";
 export * from "./vault/admin.js";
 export * from "./vault/adaptor.js";

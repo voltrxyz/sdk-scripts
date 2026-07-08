@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import {
   buildAcceptVaultAdminOperation,
+  buildAcceptProtocolAdminOperation,
   buildAddAdaptorOperation,
   buildCancelRequestWithdrawVaultOperation,
   buildDepositVaultOperation,
@@ -11,9 +12,13 @@ import {
   buildInstantWithdrawVaultOperation,
   buildRemoveAdaptorOperation,
   buildRequestWithdrawVaultOperation,
+  buildSetPendingProtocolAdminOperation,
   buildSetTokenMetadataOperation,
+  buildUpdateProtocolTreasuryOperation,
+  buildUpdateVaultAdaptorPolicyOperation,
   buildUpdateVaultConfigOperation,
   buildWithdrawVaultOperation,
+  createNoopSigner,
   generateKeyPairSigner,
   parseVaultConfigField,
   processOperation,
@@ -32,13 +37,18 @@ import {
   type KeyPairSigner,
   type LpTokenMetadata,
   type ScriptContext,
+  type TransactionSigner,
   type TxMode,
   type VaultConfigField,
   type VaultInitConfig,
 } from "@voltr/scripts-core";
 import { KAMINO_ADAPTOR_PROGRAM_ID } from "@voltr/scripts-kamino";
 import { CliError } from "../lib/errors.js";
-import { loadCommandContext, resolveProcessorOptions } from "../lib/globals.js";
+import {
+  loadCommandContext,
+  resolveProcessorOptions,
+  type GlobalOptions,
+} from "../lib/globals.js";
 import { parseAddress, parseAmount, parseU16 } from "../lib/parse.js";
 import { loadRoleSigner } from "../lib/signers.js";
 import { printJson, printLine } from "../lib/output.js";
@@ -70,6 +80,30 @@ function parseDiscriminator(value: string): number[] {
     }
     return Number(part);
   });
+}
+
+function parseAdaptorPolicyFlag(value: string): 0 | 1 {
+  if (value === "0" || value === "1") {
+    return Number(value) as 0 | 1;
+  }
+  throw new CliError(`--allow-any-adaptor must be 0 or 1: ${value}`);
+}
+
+async function loadProtocolAdminSigner(
+  globals: GlobalOptions,
+  flagValue?: string
+): Promise<TransactionSigner> {
+  if (globals.mode === "multisig") {
+    if (!globals.multisigAddress) {
+      throw new CliError(
+        "--mode multisig requires --multisig-address <pubkey>."
+      );
+    }
+    return createNoopSigner(
+      parseAddress(globals.multisigAddress, "--multisig-address")
+    );
+  }
+  return loadRoleSigner("admin", flagValue);
 }
 
 /** Coerce the `--value` flag for vault:update-config to the field's value type. */
@@ -517,7 +551,7 @@ function registerAdminVaultCommands(program: Command): void {
     .command("vault:harvest-fee")
     .summary("harvest accrued vault fees")
     .description(
-      "Harvest accrued fees into the vault admin, manager, and protocol admin LP accounts. Signs as the vault admin (the harvester)."
+      "Harvest accrued fees into the vault admin, manager, and protocol treasury LP accounts. Signs as the vault admin (the harvester)."
     )
     .option(
       "--admin-keypair <path>",
@@ -554,6 +588,183 @@ function registerAdminVaultCommands(program: Command): void {
         options: processorOptions,
       });
     });
+}
+
+/** Protocol-admin operations: protocol config and vault-level policy overrides. */
+function registerProtocolAdminCommands(program: Command): void {
+  program
+    .command("protocol:update-treasury")
+    .summary("update the protocol treasury address")
+    .description(
+      "Update the protocol treasury address that receives the protocol fee share. Signs as the current protocol admin."
+    )
+    .option(
+      "--admin-keypair <path>",
+      "protocol admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .requiredOption(
+      "--treasury <address>",
+      "new protocol treasury address"
+    )
+    .action(async (options: { adminKeypair?: string; treasury: string }) => {
+      const command = "protocol:update-treasury";
+
+      const { globals, profile, ctx } = await loadCommandContext(program);
+      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+        command,
+      });
+      const treasury = parseAddress(options.treasury, "--treasury");
+      const processorOptions = resolveProcessorOptions(globals);
+      const admin = await loadProtocolAdminSigner(globals, options.adminKeypair);
+
+      const operation = await buildUpdateProtocolTreasuryOperation(ctx, {
+        admin,
+        treasury,
+        lookupTableAddresses,
+      });
+
+      await processOperation({
+        ctx,
+        payer: admin as KeyPairSigner,
+        operation,
+        mode: globals.mode,
+        options: processorOptions,
+      });
+    });
+
+  program
+    .command("protocol:set-pending-admin")
+    .summary("start a protocol admin transfer")
+    .description(
+      "Set the pending protocol admin. The incoming admin must finish the transfer with protocol:accept-admin."
+    )
+    .option(
+      "--admin-keypair <path>",
+      "protocol admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .requiredOption(
+      "--pending-admin <address>",
+      "incoming protocol admin address"
+    )
+    .action(
+      async (options: { adminKeypair?: string; pendingAdmin: string }) => {
+        const command = "protocol:set-pending-admin";
+
+        const { globals, profile, ctx } = await loadCommandContext(program);
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command,
+        });
+        const pendingAdmin = parseAddress(
+          options.pendingAdmin,
+          "--pending-admin"
+        );
+        const processorOptions = resolveProcessorOptions(globals);
+        const admin = await loadProtocolAdminSigner(
+          globals,
+          options.adminKeypair
+        );
+
+        const operation = await buildSetPendingProtocolAdminOperation(ctx, {
+          admin,
+          pendingAdmin,
+          lookupTableAddresses,
+        });
+
+        await processOperation({
+          ctx,
+          payer: admin as KeyPairSigner,
+          operation,
+          mode: globals.mode,
+          options: processorOptions,
+        });
+      }
+    );
+
+  program
+    .command("protocol:accept-admin")
+    .summary("accept a pending protocol admin transfer")
+    .description(
+      "Accept the pending protocol admin role. Sign with the incoming admin keypair set by protocol:set-pending-admin."
+    )
+    .option(
+      "--admin-keypair <path>",
+      "pending protocol admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .action(async (options: { adminKeypair?: string }) => {
+      const command = "protocol:accept-admin";
+
+      const { globals, profile, ctx } = await loadCommandContext(program);
+      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+        command,
+      });
+      const processorOptions = resolveProcessorOptions(globals);
+      const pendingAdmin = await loadProtocolAdminSigner(
+        globals,
+        options.adminKeypair
+      );
+
+      const operation = await buildAcceptProtocolAdminOperation(ctx, {
+        pendingAdmin,
+        lookupTableAddresses,
+      });
+
+      await processOperation({
+        ctx,
+        payer: pendingAdmin as KeyPairSigner,
+        operation,
+        mode: globals.mode,
+        options: processorOptions,
+      });
+    });
+
+  program
+    .command("vault:update-adaptor-policy")
+    .summary("toggle the vault adaptor allow-any policy")
+    .description(
+      "Toggle whether this vault may add adaptor programs outside the protocol allowlist. Signs as the protocol admin."
+    )
+    .option(
+      "--admin-keypair <path>",
+      "protocol admin keypair JSON path (or ADMIN_KEYPAIR env)"
+    )
+    .requiredOption(
+      "--allow-any-adaptor <0|1>",
+      "0 enforces the allowlist; 1 allows this vault to add any executable adaptor"
+    )
+    .action(
+      async (options: { adminKeypair?: string; allowAnyAdaptor: string }) => {
+        const command = "vault:update-adaptor-policy";
+
+        const { globals, profile, ctx } = await loadCommandContext(program);
+        const vault = requireVaultAddress(profile, { command });
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command,
+        });
+        const allowAnyAdaptor = parseAdaptorPolicyFlag(
+          options.allowAnyAdaptor
+        );
+        const processorOptions = resolveProcessorOptions(globals);
+        const admin = await loadProtocolAdminSigner(
+          globals,
+          options.adminKeypair
+        );
+
+        const operation = await buildUpdateVaultAdaptorPolicyOperation(ctx, {
+          admin,
+          vault,
+          allowAnyAdaptor,
+          lookupTableAddresses,
+        });
+
+        await processOperation({
+          ctx,
+          payer: admin as KeyPairSigner,
+          operation,
+          mode: globals.mode,
+          options: processorOptions,
+        });
+      }
+    );
 }
 
 /** User operations: deposit and the withdrawal flows. */
@@ -991,6 +1202,7 @@ function registerAdaptorAdminCommands(program: Command): void {
 
 /** Shared vault operations (`vault:*`). */
 export function registerVaultCommands(program: Command): void {
+  registerProtocolAdminCommands(program);
   registerAdminVaultCommands(program);
   registerUserVaultCommands(program);
   registerAdaptorAdminCommands(program);

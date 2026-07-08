@@ -18,7 +18,7 @@ import {
 } from "@voltr/vault-sdk";
 import type { BuiltOperation, ScriptContext } from "../types.js";
 import { setupTokenAccount } from "../token/accounts.js";
-import { PROTOCOL_ADMIN } from "./constants.js";
+import { PROTOCOL_TREASURY } from "./constants.js";
 import {
   serializeVaultConfigValue,
   VaultConfigField,
@@ -247,13 +247,15 @@ export interface HarvestFeeArgs {
   admin: KeyPairSigner;
   /** Vault manager address (receives the manager fee share). */
   manager: Address;
+  /** Protocol treasury address (receives the protocol fee share). */
+  protocolTreasury?: Address;
   vault: Address;
   lookupTableAddresses?: Address[];
 }
 
 /**
  * Builds a harvest-fee operation. Ensures the LP token accounts for the vault
- * admin, vault manager, and protocol admin exist, then harvests fees into them.
+ * admin, vault manager, and protocol treasury exist, then harvests fees into them.
  */
 export async function buildHarvestFeeOperation(
   ctx: ScriptContext,
@@ -261,6 +263,7 @@ export async function buildHarvestFeeOperation(
 ): Promise<BuiltOperation> {
   const instructions: Instruction[] = [];
   const [lpMint] = await findVaultLpMintPda({ vault: args.vault });
+  const protocolTreasury = args.protocolTreasury ?? PROTOCOL_TREASURY;
 
   await setupTokenAccount({
     rpc: ctx.rpc,
@@ -280,7 +283,7 @@ export async function buildHarvestFeeOperation(
     rpc: ctx.rpc,
     payer: args.admin,
     mint: lpMint,
-    owner: PROTOCOL_ADMIN,
+    owner: protocolTreasury,
     instructions,
   });
 
@@ -289,7 +292,7 @@ export async function buildHarvestFeeOperation(
       harvester: args.admin,
       vaultManager: args.manager,
       vaultAdmin: args.admin.address,
-      protocolAdmin: PROTOCOL_ADMIN,
+      protocolTreasury,
       vault: args.vault,
     })
   );

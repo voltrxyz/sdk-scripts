@@ -64,6 +64,7 @@ test("--help lists the available commands", async () => {
   await assert.rejects(() => parse(program, ["--help"]));
   const text = output();
   assert.match(text, /Usage: voltr-scripts/);
+  assert.match(text, /protocol:update-treasury/);
   assert.match(text, /vault:deposit/);
   assert.match(text, /kamino:market:deposit/);
   assert.match(text, /spot:swap:buy/);
@@ -133,12 +134,16 @@ test("--help lists the full vault command surface", async () => {
   await assert.rejects(() => parse(program, ["--help"]));
   const text = output();
   for (const cmd of [
+    "protocol:update-treasury",
+    "protocol:set-pending-admin",
+    "protocol:accept-admin",
     "vault:init",
     "vault:init-and-set-token-metadata",
     "vault:set-token-metadata",
     "vault:update-config",
     "vault:accept-admin",
     "vault:harvest-fee",
+    "vault:update-adaptor-policy",
     "vault:request-withdraw",
     "vault:cancel-request-withdraw",
     "vault:withdraw",
@@ -237,6 +242,13 @@ test("vault:harvest-fee requires --manager", async () => {
   const { program } = harness();
   await assert.rejects(() =>
     parse(program, ["--profile", "p.json", "vault:harvest-fee"])
+  );
+});
+
+test("protocol:update-treasury requires --treasury", async () => {
+  const { program } = harness();
+  await assert.rejects(() =>
+    parse(program, ["--profile", "p.json", "protocol:update-treasury"])
   );
 });
 
@@ -446,6 +458,23 @@ test("vault:init-direct-withdraw requires an explicit discriminator for adaptor 
           SYSTEM,
         ]),
       /requires --discriminator/
+    );
+  });
+});
+
+test("vault:update-adaptor-policy rejects a non-0/1 flag before loading a keypair", async () => {
+  await withTempProfile(VAULT_ONLY_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "vault:update-adaptor-policy",
+          "--allow-any-adaptor",
+          "2",
+        ]),
+      /--allow-any-adaptor must be 0 or 1/
     );
   });
 });
@@ -737,6 +766,38 @@ const TRUSTFUL_PROFILE = JSON.stringify({
     vaultAddress: SYSTEM,
   },
   integrations: { trustful: { strategySeedString: "demo" } },
+});
+
+test("protocol multisig mode uses --multisig-address without loading an admin keypair", async () => {
+  await withTempProfile(VAULT_ONLY_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    const originalLog: typeof console.log = console.log;
+    const lines: Array<string> = [];
+    console.log = (...values: Array<unknown>): void => {
+      lines.push(values.map(String).join(" "));
+    };
+    try {
+      await parse(program, [
+        "--profile",
+        profilePath,
+        "--mode",
+        "multisig",
+        "--multisig-address",
+        SYSTEM,
+        "protocol:update-treasury",
+        "--treasury",
+        USDC,
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+    assert.ok(
+      lines.some((line) =>
+        line.includes("protocol:update-treasury multisig payload")
+      ),
+      "expected a multisig payload without loading ADMIN_KEYPAIR"
+    );
+  });
 });
 
 test("kamino:market:deposit rejects a non-integer --amount", async () => {

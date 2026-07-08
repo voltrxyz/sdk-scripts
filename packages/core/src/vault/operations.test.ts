@@ -13,7 +13,7 @@ import {
 import { findVaultLpMintPda } from "@voltr/vault-sdk";
 import { assertBuiltOperationShape } from "../testing.js";
 import type { ScriptContext } from "../types.js";
-import { NATIVE_MINT } from "./constants.js";
+import { NATIVE_MINT, PROTOCOL_TREASURY } from "./constants.js";
 import {
   buildAcceptVaultAdminOperation,
   buildHarvestFeeOperation,
@@ -221,7 +221,7 @@ test("request-withdraw escrows LP into the receipt ATA when missing", async () =
   assert.equal(existing.instructions.length, 1);
 });
 
-test("harvest-fee sets up LP accounts for admin, manager, and protocol admin", async () => {
+test("harvest-fee sets up LP accounts for admin, manager, and protocol treasury", async () => {
   const admin = await makeSigner();
   const manager = await makeVault();
   const vault = await makeVault();
@@ -232,8 +232,16 @@ test("harvest-fee sets up LP accounts for admin, manager, and protocol admin", a
     label: "vault:harvest-fee",
     minInstructions: 4,
   });
-  // three create-ATA instructions (admin, manager, protocol admin) + harvest
+  // three create-ATA instructions (admin, manager, protocol treasury) + harvest
   assert.equal(missing.instructions.length, 4);
+  assert.ok(
+    missing.instructions.some((instruction) =>
+      (instruction.accounts ?? []).some(
+        (account) => account.address === PROTOCOL_TREASURY
+      )
+    ),
+    "expected the default protocol treasury among the harvest accounts"
+  );
 
   const existing = await buildHarvestFeeOperation(makeCtx(true), args);
   assertBuiltOperationShape(existing, { label: "vault:harvest-fee" });
