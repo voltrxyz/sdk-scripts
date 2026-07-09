@@ -1,11 +1,11 @@
 # Voltr Integration Scripts
 
-A single command-line tool for operating Voltr vaults and their protocol
-integrations. Every operation — vault setup, deposits/withdrawals, and each
-supported strategy — is one `<group>:<action>` command driven by a JSON
-**profile** (the vault's addresses) and **flags** (per-call values such as
-amounts and signer paths). Source files are never edited to change runtime
-values.
+A single command-line tool for operating Voltr vaults, protocol admin flows, and
+their protocol integrations. Each operation is one `<group>:<action>` command.
+Vault and strategy operations are driven by a JSON **profile** (the vault's
+addresses) plus **flags** (per-call values such as amounts and signer paths);
+`protocol:*` commands can run from flags and RPC env alone. Source files are
+never edited to change runtime values.
 
 - **One CLI** (`apps/cli`) exposes every operation as a `<group>:<action>` command.
 - **Shared vault behavior** — signers, RPC, token accounts, lookup tables, and
@@ -122,7 +122,8 @@ pnpm cli -- vault:deposit --help   # flags for a single command
 ```
 
 Commands are grouped by `<group>:*` prefix (`protocol:`, `vault:`, `kamino:`,
-`spot:`, `trustful:`, plus the maintenance command `check`). Every command takes the
-global options (`--profile`, `--rpc-url`, `--mode`, priority-fee flags); the
+`spot:`, `trustful:`, plus the maintenance command `check`). Transaction commands
+take the global options (`--profile`, `--rpc-url`, `--mode`, priority-fee flags);
+`protocol:*` commands do not need `--profile`. The
 [operator guide](./docs/operator-guide.md) explains what each option does and
 walks through the common workflows.

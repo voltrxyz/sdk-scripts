@@ -16,15 +16,15 @@ import type { ScriptContext } from "./types.js";
 //   2. RPC_URL env
 //   3. HELIUS_RPC_URL env
 //   4. profile.rpcUrl
-export function createScriptContext(
-  profile: ScriptProfile,
-  rpcUrlOverride?: string
-): ScriptContext {
+export function resolveRpcUrl(
+  rpcUrlOverride?: string,
+  profileRpcUrl?: string
+): string {
   const rpcUrl =
     rpcUrlOverride ||
     process.env.RPC_URL ||
     process.env.HELIUS_RPC_URL ||
-    profile.rpcUrl;
+    profileRpcUrl;
 
   if (!rpcUrl) {
     throw new Error(
@@ -32,8 +32,26 @@ export function createScriptContext(
     );
   }
 
+  return rpcUrl;
+}
+
+export function createScriptContext(
+  profile: ScriptProfile,
+  rpcUrlOverride?: string
+): ScriptContext {
+  const rpcUrl = resolveRpcUrl(rpcUrlOverride, profile.rpcUrl);
+
   return {
     profile,
+    rpcUrl,
+    rpc: createSolanaRpc(rpcUrl),
+  };
+}
+
+export function createRpcScriptContext(rpcUrlOverride?: string): ScriptContext {
+  const rpcUrl = resolveRpcUrl(rpcUrlOverride);
+
+  return {
     rpcUrl,
     rpc: createSolanaRpc(rpcUrl),
   };

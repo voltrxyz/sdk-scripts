@@ -6,7 +6,7 @@ export type SolanaRpc = ReturnType<typeof createSolanaRpc>;
 export type TxMode = "execute" | "simulate" | "multisig" | "print";
 
 export interface ScriptContext {
-  profile: ScriptProfile;
+  profile?: ScriptProfile;
   rpcUrl: string;
   rpc: SolanaRpc;
 }

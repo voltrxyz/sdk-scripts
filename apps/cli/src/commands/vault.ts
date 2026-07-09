@@ -46,6 +46,7 @@ import { KAMINO_ADAPTOR_PROGRAM_ID } from "@voltr/scripts-kamino";
 import { CliError } from "../lib/errors.js";
 import {
   loadCommandContext,
+  loadRpcCommandContext,
   resolveProcessorOptions,
   type GlobalOptions,
 } from "../lib/globals.js";
@@ -607,12 +608,7 @@ function registerProtocolAdminCommands(program: Command): void {
       "new protocol treasury address"
     )
     .action(async (options: { adminKeypair?: string; treasury: string }) => {
-      const command = "protocol:update-treasury";
-
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
+      const { globals, ctx } = loadRpcCommandContext(program);
       const treasury = parseAddress(options.treasury, "--treasury");
       const processorOptions = resolveProcessorOptions(globals);
       const admin = await loadProtocolAdminSigner(globals, options.adminKeypair);
@@ -620,7 +616,6 @@ function registerProtocolAdminCommands(program: Command): void {
       const operation = await buildUpdateProtocolTreasuryOperation(ctx, {
         admin,
         treasury,
-        lookupTableAddresses,
       });
 
       await processOperation({
@@ -648,12 +643,7 @@ function registerProtocolAdminCommands(program: Command): void {
     )
     .action(
       async (options: { adminKeypair?: string; pendingAdmin: string }) => {
-        const command = "protocol:set-pending-admin";
-
-        const { globals, profile, ctx } = await loadCommandContext(program);
-        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-          command,
-        });
+        const { globals, ctx } = loadRpcCommandContext(program);
         const pendingAdmin = parseAddress(
           options.pendingAdmin,
           "--pending-admin"
@@ -667,7 +657,6 @@ function registerProtocolAdminCommands(program: Command): void {
         const operation = await buildSetPendingProtocolAdminOperation(ctx, {
           admin,
           pendingAdmin,
-          lookupTableAddresses,
         });
 
         await processOperation({
@@ -691,12 +680,7 @@ function registerProtocolAdminCommands(program: Command): void {
       "pending protocol admin keypair JSON path (or ADMIN_KEYPAIR env)"
     )
     .action(async (options: { adminKeypair?: string }) => {
-      const command = "protocol:accept-admin";
-
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
+      const { globals, ctx } = loadRpcCommandContext(program);
       const processorOptions = resolveProcessorOptions(globals);
       const pendingAdmin = await loadProtocolAdminSigner(
         globals,
@@ -705,7 +689,6 @@ function registerProtocolAdminCommands(program: Command): void {
 
       const operation = await buildAcceptProtocolAdminOperation(ctx, {
         pendingAdmin,
-        lookupTableAddresses,
       });
 
       await processOperation({
@@ -735,7 +718,9 @@ function registerProtocolAdminCommands(program: Command): void {
       async (options: { adminKeypair?: string; allowAnyAdaptor: string }) => {
         const command = "vault:update-adaptor-policy";
 
-        const { globals, profile, ctx } = await loadCommandContext(program);
+        const { globals, profile, ctx } = await loadCommandContext(program, {
+          command,
+        });
         const vault = requireVaultAddress(profile, { command });
         const lookupTableAddresses = resolveLookupTableAddresses(profile, {
           command,

@@ -17,7 +17,8 @@ The protocol admin can set a per-vault adaptor-policy override with
 `vault:update-adaptor-policy --allow-any-adaptor 1`. When enabled, that vault can
 add adaptor programs outside the built-in allowlist. Setting it back to `0`
 restores the allowlist for future additions but does not remove adaptor receipts
-created while the override was enabled.
+created while the override was enabled. Like the other `vault:*` commands, it
+requires `--profile` and reads the target vault from `vault.vaultAddress`.
 
 ## Where each input comes from
 

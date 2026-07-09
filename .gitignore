@@ -6,3 +6,8 @@ dist/
 *.log
 .DS_Store
 
+# Operator profiles can contain deployment-specific addresses. Keep committed
+# examples trackable while ignoring local configs.
+configs/*
+!configs/examples/
+!configs/examples/**

@@ -103,6 +103,7 @@ test("processOperation dispatches multisig mode and emits base58 + base64", asyn
     assert.ok(result.base58Message.length > 0);
     assert.notEqual(result.base64Message, result.base58Message);
     assert.ok(result.explorerUrl.startsWith("https://explorer.solana.com"));
+    assert.doesNotMatch(result.explorerUrl, /signatures=/);
   } finally {
     console.log = originalLog;
   }

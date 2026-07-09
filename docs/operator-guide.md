@@ -118,9 +118,8 @@ Resolved in this order (first non-empty wins):
 3. `HELIUS_RPC_URL` env
 4. `rpcUrl` field in the profile
 
-Every command **except `check`** builds an RPC-backed context up front, so a URL
-must resolve from one of those — even `--mode print`, whose build phase still
-reads chain state (only `check` runs without RPC). **Safe handling:** keep
+Every transaction command builds an RPC-backed context up front, so a URL must
+resolve from one of those — even `--mode print`. **Safe handling:** keep
 authenticated RPC URLs (those embedding an API key) in env/`.env`, not in
 committed profiles; leave `profile.rpcUrl` empty for shared profiles.
 
@@ -179,7 +178,7 @@ payload into the multisig instead of signing locally.
 
 | Option | Purpose |
 | --- | --- |
-| `--profile <path>` | Profile JSON to load (required). |
+| `--profile <path>` | Profile JSON to load. Required by vault and integration commands that read profile-sourced addresses. Not required by `protocol:*`. |
 | `--rpc-url <url>` | RPC override (see precedence above). |
 | `--mode <mode>` | `print` (default) / `simulate` / `multisig` / `execute`. |
 | `--multisig-address <pubkey>` | On-chain signer PDA; required for `--mode multisig`. |
@@ -257,8 +256,11 @@ pnpm cli -- --profile configs/my-vault.json --mode execute \
 ### Protocol admin operations
 
 Protocol admin commands sign with `--admin-keypair` / `ADMIN_KEYPAIR`, but the
-key must be the protocol admin, not the vault admin. These commands mutate the
-protocol PDA or a protocol-admin-controlled field on a vault.
+key must be the protocol admin, not the vault admin. `protocol:*` commands do not
+read a vault profile; set `RPC_URL` or pass `--rpc-url`.
+`vault:update-adaptor-policy` is also protocol-admin signed, but it is a
+vault-prefixed operation and requires `--profile` so it can read
+`vault.vaultAddress` and any lookup-table setting from the profile.
 
 If the protocol admin is a multisig PDA, use `--mode multisig
 --multisig-address <PROTOCOL_ADMIN_PDA>`; the command will put that PDA in the
@@ -266,10 +268,10 @@ protocol admin signer account and print the payload to import into the multisig.
 
 ```bash
 # Set the protocol treasury that receives the protocol fee share:
-pnpm cli -- --profile configs/my-vault.json --mode execute \
+pnpm cli -- --mode execute \
   protocol:update-treasury --treasury <TREASURY_PUBKEY>
 
-# Allow one vault to add adaptor programs outside the protocol allowlist:
+# Allow one vault to add adaptor programs outside the protocol allowlist.
 pnpm cli -- --profile configs/my-vault.json --mode execute \
   vault:update-adaptor-policy --allow-any-adaptor 1
 
@@ -278,9 +280,9 @@ pnpm cli -- --profile configs/my-vault.json --mode execute \
   vault:update-adaptor-policy --allow-any-adaptor 0
 
 # Transfer protocol admin in two steps:
-pnpm cli -- --profile configs/my-vault.json --mode execute \
+pnpm cli -- --mode execute \
   protocol:set-pending-admin --pending-admin <NEW_PROTOCOL_ADMIN_PUBKEY>
-pnpm cli -- --profile configs/my-vault.json --mode execute \
+pnpm cli -- --mode execute \
   protocol:accept-admin
 ```
 

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { loadProfile, type ScriptProfile } from "@voltr/scripts-core";
-import type { GlobalOptions } from "../lib/globals.js";
+import { requireProfilePath, type GlobalOptions } from "../lib/globals.js";
 import { presence, printField, printLine } from "../lib/output.js";
 
 function summarizeIntegrations(profile: ScriptProfile): void {
@@ -40,7 +40,9 @@ export function registerCheckCommand(program: Command): void {
     )
     .action(async () => {
       const globals = program.opts<GlobalOptions>();
-      const profile = await loadProfile(globals.profile);
+      const profile = await loadProfile(
+        requireProfilePath(globals, { command: "check" })
+      );
 
       printLine(`Profile: ${profile.name} (${profile.cluster})`);
       printLine("vault:");

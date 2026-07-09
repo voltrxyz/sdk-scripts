@@ -99,6 +99,14 @@ test("rejects vault:deposit without the required --amount", async () => {
   );
 });
 
+test("profile-backed commands require --profile when their required flags are present", async () => {
+  const { program } = harness();
+  await assert.rejects(
+    () => parse(program, ["vault:deposit", "--amount", "1"]),
+    /--profile <path> is required/
+  );
+});
+
 test("vault:deposit surfaces a missing profile field before any network/keypair I/O", async () => {
   // Valid profile, but no vaultAddress -> requireVaultAddress should throw
   // before createScriptContext or the keypair file is ever touched.
@@ -248,8 +256,13 @@ test("vault:harvest-fee requires --manager", async () => {
 test("protocol:update-treasury requires --treasury", async () => {
   const { program } = harness();
   await assert.rejects(() =>
-    parse(program, ["--profile", "p.json", "protocol:update-treasury"])
+    parse(program, ["protocol:update-treasury"])
   );
+});
+
+test("check requires --profile", async () => {
+  const { program } = harness();
+  await assert.rejects(() => parse(program, ["check"]), /--profile <path>/);
 });
 
 test("vault:query:position requires --user", async () => {
@@ -769,35 +782,52 @@ const TRUSTFUL_PROFILE = JSON.stringify({
 });
 
 test("protocol multisig mode uses --multisig-address without loading an admin keypair", async () => {
-  await withTempProfile(VAULT_ONLY_PROFILE, async (profilePath) => {
-    const { program } = harness();
-    const originalLog: typeof console.log = console.log;
-    const lines: Array<string> = [];
-    console.log = (...values: Array<unknown>): void => {
-      lines.push(values.map(String).join(" "));
-    };
-    try {
-      await parse(program, [
-        "--profile",
-        profilePath,
+  const { program } = harness();
+  const originalLog: typeof console.log = console.log;
+  const lines: Array<string> = [];
+  console.log = (...values: Array<unknown>): void => {
+    lines.push(values.map(String).join(" "));
+  };
+  try {
+    await parse(program, [
+      "--rpc-url",
+      "http://localhost:8899",
+      "--mode",
+      "multisig",
+      "--multisig-address",
+      SYSTEM,
+      "protocol:update-treasury",
+      "--treasury",
+      USDC,
+    ]);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.ok(
+    lines.some((line) =>
+      line.includes("protocol:update-treasury multisig payload")
+    ),
+    "expected a multisig payload without loading ADMIN_KEYPAIR or --profile"
+  );
+});
+
+test("vault:update-adaptor-policy requires --profile", async () => {
+  const { program } = harness();
+  await assert.rejects(
+    () =>
+      parse(program, [
+        "--rpc-url",
+        "http://localhost:8899",
         "--mode",
         "multisig",
         "--multisig-address",
         SYSTEM,
-        "protocol:update-treasury",
-        "--treasury",
-        USDC,
-      ]);
-    } finally {
-      console.log = originalLog;
-    }
-    assert.ok(
-      lines.some((line) =>
-        line.includes("protocol:update-treasury multisig payload")
-      ),
-      "expected a multisig payload without loading ADMIN_KEYPAIR"
-    );
-  });
+        "vault:update-adaptor-policy",
+        "--allow-any-adaptor",
+        "1",
+      ]),
+    /--profile <path> is required/
+  );
 });
 
 test("kamino:market:deposit rejects a non-integer --amount", async () => {

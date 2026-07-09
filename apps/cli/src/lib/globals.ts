@@ -1,5 +1,6 @@
 import { Command, Option } from "commander";
 import {
+  createRpcScriptContext,
   createScriptContext,
   loadProfile,
   type Address,
@@ -19,7 +20,7 @@ export type PriorityFeeKind = (typeof PRIORITY_FEE_KINDS)[number];
 
 /** Options declared on the root program and shared by every command. */
 export interface GlobalOptions {
-  profile: string;
+  profile?: string;
   rpcUrl?: string;
   mode: TxMode;
   multisigAddress?: string;
@@ -34,7 +35,7 @@ export interface GlobalOptions {
  */
 export function addGlobalOptions(program: Command): Command {
   return program
-    .requiredOption("--profile <path>", "JSON profile path")
+    .option("--profile <path>", "JSON profile path")
     .option(
       "--rpc-url <url>",
       "RPC URL override (else RPC_URL / HELIUS_RPC_URL env, else profile.rpcUrl)"
@@ -66,18 +67,42 @@ export interface CommandContext {
   ctx: ScriptContext;
 }
 
+export interface RpcCommandContext {
+  globals: GlobalOptions;
+  ctx: ScriptContext;
+}
+
+export function requireProfilePath(
+  globals: GlobalOptions,
+  options?: { command?: string }
+): string {
+  if (!globals.profile) {
+    const command = options?.command ? ` for command "${options.command}"` : "";
+    throw new CliError(`--profile <path> is required${command}.`);
+  }
+  return globals.profile;
+}
+
 /**
  * Load and validate the profile named by the global `--profile` flag and build
- * the RPC-backed `ScriptContext`. Used by every transaction command so the
- * "read globals → load profile → make context" boilerplate lives in one place.
+ * the RPC-backed `ScriptContext`. Used by profile-backed transaction commands
+ * so the "read globals → load profile → make context" boilerplate lives in one
+ * place.
  */
 export async function loadCommandContext(
-  program: Command
+  program: Command,
+  options?: { command?: string }
 ): Promise<CommandContext> {
   const globals = program.opts<GlobalOptions>();
-  const profile = await loadProfile(globals.profile);
+  const profile = await loadProfile(requireProfilePath(globals, options));
   const ctx = createScriptContext(profile, globals.rpcUrl);
   return { globals, profile, ctx };
+}
+
+export function loadRpcCommandContext(program: Command): RpcCommandContext {
+  const globals = program.opts<GlobalOptions>();
+  const ctx = createRpcScriptContext(globals.rpcUrl);
+  return { globals, ctx };
 }
 
 function parseMultisigAddress(value: string | undefined): Address | undefined {

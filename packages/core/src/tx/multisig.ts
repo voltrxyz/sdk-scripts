@@ -77,7 +77,7 @@ export function buildMultisigPayload(args: MultisigTxArgs): MultisigTxResult {
   const base58Message = getBase58Decoder().decode(bytes);
   const explorerUrl = `https://explorer.solana.com/tx/inspector?message=${encodeURIComponent(
     base64Message
-  )}&signatures=${encodeURIComponent(JSON.stringify([args.multisigAddress]))}`;
+  )}`;
 
   return { base64Message, base58Message, explorerUrl };
 }
