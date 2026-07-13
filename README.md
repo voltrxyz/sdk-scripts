@@ -69,6 +69,11 @@ RPC_URL="https://your-rpc" USER_KEYPAIR=/path/to/user.json pnpm cli -- \
 > See the operator guide's
 > [transaction modes](./docs/operator-guide.md#2-transaction-modes--verify-before-you-execute).
 
+For a Squads-controlled role, `--mode multisig --multisig-address <VAULT_PDA>`
+prints a complete unsigned Base58 transaction for Squads' transaction importer.
+The output includes its raw byte size; Squads wrapping adds overhead, so split
+large instruction sets when the wrapped execution exceeds Solana's size limit.
+
 ## Supported integrations
 
 | Integration | Command groups | Reference |

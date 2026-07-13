@@ -397,9 +397,8 @@ test("vault:init rejects a non-numeric --max-cap", async () => {
 
 test("vault:init* reject --mode multisig even when fully specified", async () => {
   // The init commands generate an ephemeral vault keypair that must sign; a
-  // multisig payload (no signatures, placeholder blockhash) can never carry that
-  // signature, so the mode is rejected before a throwaway keypair is generated —
-  // even with a valid --multisig-address present.
+  // multisig transaction cannot supply that keypair's signature. Reject the mode
+  // before generating a throwaway keypair, even with a multisig address present.
   const profile = JSON.stringify({
     name: "cli-test",
     cluster: "devnet",
@@ -784,10 +783,28 @@ const TRUSTFUL_PROFILE = JSON.stringify({
 test("protocol multisig mode uses --multisig-address without loading an admin keypair", async () => {
   const { program } = harness();
   const originalLog: typeof console.log = console.log;
+  const originalFetch: typeof globalThis.fetch = globalThis.fetch;
   const lines: Array<string> = [];
   console.log = (...values: Array<unknown>): void => {
     lines.push(values.map(String).join(" "));
   };
+  globalThis.fetch = (() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            context: { slot: 1 },
+            value: {
+              blockhash: SYSTEM,
+              lastValidBlockHeight: 123,
+            },
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    )) as typeof globalThis.fetch;
   try {
     await parse(program, [
       "--rpc-url",
@@ -802,6 +819,7 @@ test("protocol multisig mode uses --multisig-address without loading an admin ke
     ]);
   } finally {
     console.log = originalLog;
+    globalThis.fetch = originalFetch;
   }
   assert.ok(
     lines.some((line) =>
@@ -809,6 +827,7 @@ test("protocol multisig mode uses --multisig-address without loading an admin ke
     ),
     "expected a multisig payload without loading ADMIN_KEYPAIR or --profile"
   );
+  assert.ok(lines.some((line) => line.includes("format: legacy")));
 });
 
 test("vault:update-adaptor-policy requires --profile", async () => {

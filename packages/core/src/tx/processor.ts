@@ -32,7 +32,7 @@ export async function processOperation(
       case "simulate":
         return await runSimulateMode(ctx, payer, operation, options);
       case "multisig":
-        return runMultisigMode(operation, options);
+        return await runMultisigMode(ctx, operation, options);
       case "execute":
         return await runExecuteMode(ctx, payer, operation, options);
     }
@@ -106,31 +106,39 @@ async function runSimulateMode(
   return { mode: "simulate", simulation, explorerUrl };
 }
 
-function runMultisigMode(
+async function runMultisigMode(
+  ctx: ScriptContext,
   operation: BuiltOperation,
   options: ProcessorOptions
-): ProcessResult {
+): Promise<ProcessResult> {
   if (!options.multisigAddress) {
     throw new Error(
-      "multisig mode requires options.multisigAddress (the vault PDA that will sign on-chain)."
+      "multisig mode requires options.multisigAddress (the vault PDA that will sign onchain)."
     );
   }
 
-  const { base64Message, base58Message, explorerUrl } = buildMultisigPayload({
+  const { value: blockhash } = await ctx.rpc
+    .getLatestBlockhash({ commitment: "confirmed" })
+    .send();
+  const result = buildMultisigPayload({
+    blockhash,
     instructions: operation.instructions,
-    addressesByLookupTable: {},
     multisigAddress: options.multisigAddress,
     stripComputeBudget: true,
   });
 
   console.log(`${operation.label} multisig payload:`);
-  console.log(`  base64: ${base64Message}`);
-  console.log(`  base58: ${base58Message}`);
+  console.log(`  format: ${result.transactionVersion}`);
+  console.log(
+    `  bytes: ${result.transactionSizeBytes}/${result.transactionSizeLimitBytes}`
+  );
+  console.log(`  base64: ${result.base64Transaction}`);
+  console.log(`  base58: ${result.base58Transaction}`);
   if (!options.quiet) {
-    console.log(`  explorer: ${explorerUrl}`);
+    console.log(`  explorer: ${result.explorerUrl}`);
   }
 
-  return { mode: "multisig", base64Message, base58Message, explorerUrl };
+  return { mode: "multisig", ...result };
 }
 
 async function runExecuteMode(

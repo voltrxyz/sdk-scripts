@@ -55,7 +55,7 @@ export interface ProcessorOptions {
   /** Override of compute-unit limit. Falls back to operation value, then simulation. */
   computeUnitLimit?: number | null;
   /**
-   * Address that will sign on-chain in `multisig` mode (e.g. the Squads vault PDA).
+   * Address that will sign onchain in `multisig` mode (e.g. the Squads vault PDA).
    * Required for multisig mode. Ignored in other modes.
    */
   multisigAddress?: Address;
@@ -80,7 +80,10 @@ export type ProcessResult =
   | { mode: "simulate"; simulation: SimulationLogs; explorerUrl: string }
   | {
       mode: "multisig";
-      base64Message: string;
-      base58Message: string;
+      base64Transaction: string;
+      base58Transaction: string;
       explorerUrl: string;
+      transactionSizeBytes: number;
+      transactionSizeLimitBytes: number;
+      transactionVersion: "legacy" | 0;
     };

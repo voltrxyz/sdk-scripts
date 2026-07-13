@@ -19,9 +19,10 @@ Run from the repo root:
 | `pnpm cli -- …`  | Runs the CLI straight from source.                                          | no           | depends¹ |
 | `pnpm example -- <name>` | Runs a programmatic example by name (or `pnpm exec tsx <file>`).      | no           | depends¹ |
 
-¹ `--mode execute`/`simulate` always touch the network; `--mode print` /
-`--mode multisig` are offline. Examples default to `print`; some example builders
-still read accounts in `print` — see [examples/README.md](../examples/README.md).
+¹ `--mode execute`/`simulate` always touch the network, and `--mode multisig`
+fetches a recent blockhash before serializing the unsigned transaction. Examples
+default to `print`; some example builders still read accounts in `print` - see
+[examples/README.md](../examples/README.md).
 
 **Before opening a PR, run `pnpm check`** (or, for a faster inner loop,
 `pnpm typecheck && pnpm test`).
@@ -60,7 +61,7 @@ gate `execute` behind a confirmation (`--yes` / `VOLTR_CONFIRM=1`).
 
 The runtime check above only exercises offline builders (fake RPC, generated
 signers). Actually running an example needs a configured profile + RPC (and a
-keypair for transaction examples); some builders decode on-chain state or call
+keypair for transaction examples); some builders decode onchain state or call
 Jupiter even in `print`, so they need a working RPC to preview. `--mode execute`,
 a live Jupiter swap, and the Kamino market/kvault flows are exercised manually,
 not by `pnpm check`.

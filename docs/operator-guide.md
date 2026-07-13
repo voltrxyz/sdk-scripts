@@ -138,17 +138,24 @@ in every mode**, so a reachable RPC (and Jupiter, for swaps) is needed even for
 `print` and `multisig`. `--mode` only controls what happens *with* the built
 operation; `check` is the only fully offline command.
 
-| Mode | Sends on-chain? | Network after the build | What it does with the built operation |
+| Mode | Sends onchain? | Network after the build | What it does with the built operation |
 | --- | --- | --- | --- |
 | `print` *(default)* | No | none | Prints `{ label, instructionCount, lookupTableAddresses }` + any operation metadata. The no-send preview. |
 | `simulate` | No | one `simulateTransaction` RPC | Prints `OK`/`FAILED`, compute units, program logs, explorer URL. |
-| `multisig` | No | none | Emits a base64 + base58 transaction message (compute-budget stripped) to import into a multisig (e.g. Squads) for the named on-chain signer. Nothing is sent. |
+| `multisig` | No | one `getLatestBlockhash` RPC | Emits a complete unsigned base64 + Base58 transaction for the named onchain signer. Compute-budget instructions are stripped because the multisig execution transaction supplies them. Nothing is sent. |
 | `execute` | **Yes** | send + confirm | Signs with the role keypair, sends, confirms; prints the signature and compute units consumed. |
 
 Most transaction commands resolve a role keypair and an RPC URL up front (the
 build needs them); `multisig` additionally requires `--multisig-address`.
 Protocol admin commands in `multisig` mode use `--multisig-address` as the
-protocol admin signer account and do not load `ADMIN_KEYPAIR`.
+protocol admin signer account and do not load `ADMIN_KEYPAIR`. Multisig mode
+fetches a recent blockhash, reserves zero-filled signature slots, and serializes
+the complete transaction envelope expected by Squads' Base58 importer.
+
+The `bytes` line reports the unsigned transaction's size against Solana's limit.
+Squads adds accounts and instructions when it wraps the imported transaction, so
+a payload near the limit can still be too large to execute. Split a large
+operation into multiple proposals when Squads reports an oversized transaction.
 
 **Recommended workflow — never `execute` blind:**
 
@@ -157,7 +164,7 @@ protocol admin signer account and do not load `ADMIN_KEYPAIR`.
 pnpm cli -- --profile configs/my-vault.json --mode print \
   vault:deposit --amount 1000000
 
-# 2. simulate: confirm it would succeed on-chain (compute units + program logs)
+# 2. simulate: confirm it would succeed onchain (compute units + program logs)
 pnpm cli -- --profile configs/my-vault.json --mode simulate \
   vault:deposit --amount 1000000
 
@@ -168,10 +175,12 @@ pnpm cli -- --profile configs/my-vault.json --mode execute \
 
 For a vault whose admin/manager is a multisig (e.g. Squads), swap step 3 for
 `--mode multisig --multisig-address <VAULT_SIGNER_PDA>` and import the printed
-payload into the multisig instead of signing locally.
+Base58 transaction through Squads' **Import base58 encoded tx** flow instead of
+signing locally.
 
 > `vault:init*` cannot use `--mode multisig`: a fresh vault keypair must sign
-> initialization and a multisig payload can't carry that signature. Use
+> initialization and the unsigned multisig transaction cannot supply that
+> keypair's signature. Use
 > `--mode execute` (it rejects `multisig` with a clear error).
 
 ### Global options (all transaction commands)
@@ -181,7 +190,7 @@ payload into the multisig instead of signing locally.
 | `--profile <path>` | Profile JSON to load. Required by vault and integration commands that read profile-sourced addresses. Not required by `protocol:*`. |
 | `--rpc-url <url>` | RPC override (see precedence above). |
 | `--mode <mode>` | `print` (default) / `simulate` / `multisig` / `execute`. |
-| `--multisig-address <pubkey>` | On-chain signer PDA; required for `--mode multisig`. |
+| `--multisig-address <pubkey>` | Onchain signer PDA; required for `--mode multisig`. |
 | `--priority-fee <kind>` | `helius` (default) / `rpc` / `fixed` / `none`. |
 | `--priority-fee-micro-lamports <n>` | microLamports for `--priority-fee fixed`. |
 | `--compute-unit-limit <n>` | Override the estimated compute-unit limit. |

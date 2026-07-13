@@ -82,13 +82,14 @@ Flags: `--profile <path>`, `--rpc-url <url>`, `--mode <mode>`,
   send.
 - **`execute` is gated** — it requires confirmation: type `yes` at the prompt, or
   set `VOLTR_CONFIRM=1` for non-interactive runs. No example sends by default.
-- **`multisig`** emits a Squads payload and needs `VOLTR_MULTISIG_ADDRESS`.
+- **`multisig`** emits a complete unsigned transaction for Squads and needs
+  `VOLTR_MULTISIG_ADDRESS` plus a reachable RPC for a recent blockhash.
 - **No secrets are committed.** Addresses come from your profile and keypairs from
   env vars; the only in-file values are example amounts/rates, never keys or real
   vault addresses.
 - **Some builders read the chain even in `print`.** Building an operation may need
   RPC account reads, and the Kamino market/kvault deposit/withdraw/claim builders
-  decode on-chain reserve/kvault state — so a working RPC is required to preview
+  decode onchain reserve/kvault state — so a working RPC is required to preview
   them. Each file's header says what it needs.
 
 ## Catalog

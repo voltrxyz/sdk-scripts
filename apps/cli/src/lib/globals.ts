@@ -119,7 +119,7 @@ export function resolveProcessorOptions(
 ): ProcessorOptions {
   if (globals.mode === "multisig" && !globals.multisigAddress) {
     throw new CliError(
-      "--mode multisig requires --multisig-address <pubkey> (the vault PDA that signs on-chain)."
+      "--mode multisig requires --multisig-address <pubkey> (the vault PDA that signs onchain)."
     );
   }
 

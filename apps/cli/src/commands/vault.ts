@@ -296,16 +296,14 @@ function parseMetadataOptions(options: MetadataOptions): LpTokenMetadata {
 
 /**
  * Reject `--mode multisig` for the init commands. Each generates a fresh vault
- * keypair that must sign the initialization instruction, but the multisig
- * payload carries no signatures and is built over a placeholder blockhash — so
- * that ephemeral signature can never be supplied and the emitted payload would
- * be unexecutable. Fail up front (before generating a throwaway keypair) instead
- * of handing the operator a broken payload.
+ * keypair that must sign the initialization instruction. The unsigned multisig
+ * transaction only reserves signature slots, so it cannot supply that fresh
+ * keypair's signature. Fail before generating a throwaway keypair.
  */
 function assertInitModeSupported(mode: TxMode, command: string): void {
   if (mode === "multisig") {
     throw new CliError(
-      `${command} does not support --mode multisig: it generates a new vault keypair that must sign initialization, and a multisig payload cannot carry that signature. Use --mode execute (or --mode print / simulate to preview).`
+      `${command} does not support --mode multisig: it generates a new vault keypair whose signature cannot be supplied by the multisig. Use --mode execute (or --mode print / simulate to preview).`
     );
   }
 }
