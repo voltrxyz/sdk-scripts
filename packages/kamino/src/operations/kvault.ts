@@ -70,7 +70,6 @@ export async function buildKaminoKvaultInitOperation(
 
   const instructions: Instruction[] = [];
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -78,7 +77,6 @@ export async function buildKaminoKvaultInitOperation(
     tokenProgram: args.assetTokenProgram,
   });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: args.manager.address,
@@ -88,7 +86,6 @@ export async function buildKaminoKvaultInitOperation(
 
   const sharesMint = await findKvaultSharesMintPda(args.kvault);
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: sharesMint,
     owner: vaultStrategyAuth,
@@ -144,7 +141,6 @@ export async function buildKaminoKvaultDepositOperation(
 
   const instructions: Instruction[] = [];
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -159,7 +155,6 @@ export async function buildKaminoKvaultDepositOperation(
     });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: sharesMint,
     owner: vaultStrategyAuth,
@@ -220,7 +215,6 @@ export async function buildKaminoKvaultWithdrawOperation(
 
   const instructions: Instruction[] = [];
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -236,7 +230,6 @@ export async function buildKaminoKvaultWithdrawOperation(
     });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: sharesMint,
     owner: vaultStrategyAuth,
@@ -432,7 +425,6 @@ export async function buildKaminoKvaultDirectWithdrawOperation(
 
   const instructions: Instruction[] = [];
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -440,7 +432,6 @@ export async function buildKaminoKvaultDirectWithdrawOperation(
     tokenProgram: args.assetTokenProgram,
   });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: args.assetMint,
     owner: args.user.address,
@@ -456,7 +447,6 @@ export async function buildKaminoKvaultDirectWithdrawOperation(
     });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: sharesMint,
     owner: vaultStrategyAuth,
@@ -520,7 +510,6 @@ export async function buildKaminoKvaultRequestAndDirectWithdrawOperation(
       userTransferAuthority: args.user.address,
     });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: vaultLpMint,
     owner: requestWithdrawVaultReceipt,
@@ -544,7 +533,6 @@ export async function buildKaminoKvaultRequestAndDirectWithdrawOperation(
     strategy,
   });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -552,7 +540,6 @@ export async function buildKaminoKvaultRequestAndDirectWithdrawOperation(
     tokenProgram: args.assetTokenProgram,
   });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: args.assetMint,
     owner: args.user.address,
@@ -568,7 +555,6 @@ export async function buildKaminoKvaultRequestAndDirectWithdrawOperation(
     });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: sharesMint,
     owner: vaultStrategyAuth,

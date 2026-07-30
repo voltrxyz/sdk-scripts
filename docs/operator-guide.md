@@ -119,9 +119,11 @@ Resolved in this order (first non-empty wins):
 4. `rpcUrl` field in the profile
 
 Every transaction command builds an RPC-backed context up front, so a URL must
-resolve from one of those — even `--mode print`. **Safe handling:** keep
-authenticated RPC URLs (those embedding an API key) in env/`.env`, not in
-committed profiles; leave `profile.rpcUrl` empty for shared profiles.
+resolve from one of those — even `--mode print`. Creating the context does not
+contact the endpoint; builders that derive all accounts locally can still build
+without network access in `print` mode. **Safe handling:** keep authenticated RPC
+URLs (those embedding an API key) in env/`.env`, not in committed profiles;
+leave `profile.rpcUrl` empty for shared profiles.
 
 ---
 
@@ -130,13 +132,16 @@ committed profiles; leave `profile.rpcUrl` empty for shared profiles.
 Every transaction command takes `--mode` (default `print`). The two `*:query:*`
 commands and `check` ignore it.
 
-**A command builds first, then dispatches the mode.** The build phase reads chain
-state over RPC — `setupTokenAccount` checks whether a token account exists, Kamino
-decodes reserve/vault state — and the swap commands (`spot:swap:buy`/`sell`, and a
-Kamino `claim-reward*` given `--swap-amount`) also call the Jupiter API. **This runs
-in every mode**, so a reachable RPC (and Jupiter, for swaps) is needed even for
-`print` and `multisig`. `--mode` only controls what happens *with* the built
-operation; `check` is the only fully offline command.
+**A command builds first, then dispatches the mode.** Token-account setup appends
+an idempotent create instruction and does not read RPC. Kamino's state-dependent
+market and kvault builders still decode reserve or kvault state, and
+`spot:earn:extend-lut` fetches the lookup table before building its extension.
+The swap commands (`spot:swap:buy`/`sell`, and a Kamino `claim-reward*` given
+`--swap-amount`) also call the Jupiter API. Those reads run in every mode, so the
+affected commands need a reachable RPC, and Jupiter flows need HTTP access, even
+for `print` and `multisig`. Builders that only derive addresses and assemble
+instructions do not contact the network in `print` mode. `--mode` controls what
+happens *with* the built operation.
 
 | Mode | Sends onchain? | Network after the build | What it does with the built operation |
 | --- | --- | --- | --- |
@@ -145,8 +150,9 @@ operation; `check` is the only fully offline command.
 | `multisig` | No | one `getLatestBlockhash` RPC | Emits a complete unsigned base64 + Base58 transaction for the named onchain signer. Compute-budget instructions are stripped because the multisig execution transaction supplies them. Nothing is sent. |
 | `execute` | **Yes** | send + confirm | Signs with the role keypair, sends, confirms; prints the signature and compute units consumed. |
 
-Most transaction commands resolve a role keypair and an RPC URL up front (the
-build needs them); `multisig` additionally requires `--multisig-address`.
+Most transaction commands resolve a role keypair and an RPC URL up front;
+whether the build contacts that URL depends on the builder. `multisig`
+additionally requires `--multisig-address`.
 Protocol admin commands in `multisig` mode use `--multisig-address` as the
 protocol admin signer account and do not load `ADMIN_KEYPAIR`. Multisig mode
 fetches a recent blockhash, reserves zero-filled signature slots, and serializes

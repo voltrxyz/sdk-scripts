@@ -134,7 +134,7 @@ Test helpers live in `@voltr/scripts-core/testing`:
 - `createFakeScriptContext(opts?)` — a `ScriptContext` backed by a no-network
   fake RPC. (Builders must not read `ctx.profile`, so its values don't matter.)
 - `createFakeRpc(opts?)` — the fake RPC on its own; pass `existingAccounts` or a
-  custom `getAccountInfo` to control account-existence checks.
+  custom `getAccountInfo` to control responses for decode-dependent builders.
 - `assertBuiltOperationShape(op, { label?, minInstructions? })` — asserts the
   `BuiltOperation` contract (non-empty label, well-formed kit instructions,
   correctly-typed optional fields).

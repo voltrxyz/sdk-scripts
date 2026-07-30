@@ -34,9 +34,8 @@ import {
 const USDC_MINT =
   "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" as Address;
 
-// setupTokenAccount only consults getAccountInfo to decide whether to emit a
-// create-ATA instruction. A stub that reports "account exists" keeps the tests
-// offline and isolates the wSOL wrap/unwrap behavior we care about.
+// Report either account state so the tests verify that operation shape does not
+// depend on an account-existence probe.
 function makeCtx(accountExists: boolean): ScriptContext {
   const value = accountExists ? ({ lamports: 1n } as unknown) : null;
   return {
@@ -64,7 +63,7 @@ async function makeVault(): Promise<Address> {
 }
 
 test("deposit wraps native SOL: create wSOL ATA, transfer, sync, then close", async () => {
-  const ctx = makeCtx(true); // LP ATA already exists -> no LP create
+  const ctx = makeCtx(true);
   const user = await makeSigner();
   const vault = await makeVault();
 
@@ -76,9 +75,9 @@ test("deposit wraps native SOL: create wSOL ATA, transfer, sync, then close", as
     amount: 1_000_000n,
   });
 
-  assertBuiltOperationShape(op, { label: "vault:deposit", minInstructions: 5 });
-  // createATA(wSOL) + transferSol + syncNative + deposit + closeAccount
-  assert.equal(op.instructions.length, 5);
+  assertBuiltOperationShape(op, { label: "vault:deposit", minInstructions: 6 });
+  // createATA(wSOL) + transferSol + syncNative + createATA(LP) + deposit + close
+  assert.equal(op.instructions.length, 6);
   const programs = op.instructions.map((ix) => ix.programAddress);
   assert.equal(op.instructions[0].programAddress, ASSOCIATED_TOKEN_PROGRAM_ADDRESS);
   assert.ok(
@@ -93,7 +92,7 @@ test("deposit wraps native SOL: create wSOL ATA, transfer, sync, then close", as
 });
 
 test("deposit of a non-native mint does not wrap SOL", async () => {
-  const ctx = makeCtx(true); // LP ATA exists -> no create
+  const ctx = makeCtx(true);
   const user = await makeSigner();
   const vault = await makeVault();
 
@@ -105,15 +104,16 @@ test("deposit of a non-native mint does not wrap SOL", async () => {
     amount: 1_000_000n,
   });
 
-  assertBuiltOperationShape(op, { label: "vault:deposit" });
-  // Just the deposit instruction; no wrap, sync, or close.
-  assert.equal(op.instructions.length, 1);
+  assertBuiltOperationShape(op, { label: "vault:deposit", minInstructions: 2 });
+  // Idempotent LP ATA create + deposit; no wrap, sync, or close.
+  assert.equal(op.instructions.length, 2);
+  assert.equal(op.instructions[0].programAddress, ASSOCIATED_TOKEN_PROGRAM_ADDRESS);
   const programs = op.instructions.map((ix) => ix.programAddress);
   assert.ok(!programs.includes(SYSTEM_PROGRAM_ADDRESS));
 });
 
-test("deposit creates the LP token account when it is missing", async () => {
-  const ctx = makeCtx(false); // LP ATA missing -> setupTokenAccount adds create
+test("deposit emits the idempotent LP token-account create when it is missing", async () => {
+  const ctx = makeCtx(false);
   const user = await makeSigner();
   const vault = await makeVault();
 
@@ -161,7 +161,7 @@ test("withdraw closes the wSOL ATA only for native SOL", async () => {
 });
 
 test("instant-withdraw closes the wSOL ATA only for native SOL", async () => {
-  const ctx = makeCtx(true); // user asset ATA exists -> no create
+  const ctx = makeCtx(true);
   const user = await makeSigner();
   const vault = await makeVault();
 
@@ -176,10 +176,10 @@ test("instant-withdraw closes the wSOL ATA only for native SOL", async () => {
   });
   assertBuiltOperationShape(native, {
     label: "vault:instant-withdraw",
-    minInstructions: 2,
+    minInstructions: 3,
   });
-  // instantWithdraw + closeAccount
-  assert.equal(native.instructions.length, 2);
+  // createATA(asset) + instantWithdraw + closeAccount
+  assert.equal(native.instructions.length, 3);
   assert.equal(native.instructions.at(-1)?.programAddress, TOKEN_PROGRAM_ADDRESS);
 
   const spl = await buildInstantWithdrawVaultOperation(ctx, {
@@ -191,12 +191,15 @@ test("instant-withdraw closes the wSOL ATA only for native SOL", async () => {
     isAmountInLp: false,
     isWithdrawAll: false,
   });
-  assertBuiltOperationShape(spl, { label: "vault:instant-withdraw" });
-  // just instantWithdraw, no close
-  assert.equal(spl.instructions.length, 1);
+  assertBuiltOperationShape(spl, {
+    label: "vault:instant-withdraw",
+    minInstructions: 2,
+  });
+  // createATA(asset) + instantWithdraw, no close
+  assert.equal(spl.instructions.length, 2);
 });
 
-test("request-withdraw escrows LP into the receipt ATA when missing", async () => {
+test("request-withdraw always emits the idempotent receipt ATA create", async () => {
   const user = await makeSigner();
   const vault = await makeVault();
   const args = {
@@ -216,9 +219,16 @@ test("request-withdraw escrows LP into the receipt ATA when missing", async () =
   assert.equal(missing.instructions.length, 2);
 
   const existing = await buildRequestWithdrawVaultOperation(makeCtx(true), args);
-  assertBuiltOperationShape(existing, { label: "vault:request-withdraw" });
-  // receipt LP ATA exists -> just requestWithdraw
-  assert.equal(existing.instructions.length, 1);
+  assertBuiltOperationShape(existing, {
+    label: "vault:request-withdraw",
+    minInstructions: 2,
+  });
+  // Existing receipt LP ATA + requestWithdraw has the same operation shape.
+  assert.equal(existing.instructions.length, 2);
+  assert.equal(
+    existing.instructions[0].programAddress,
+    ASSOCIATED_TOKEN_PROGRAM_ADDRESS
+  );
 });
 
 test("harvest-fee sets up LP accounts for admin, manager, and protocol treasury", async () => {
@@ -244,9 +254,21 @@ test("harvest-fee sets up LP accounts for admin, manager, and protocol treasury"
   );
 
   const existing = await buildHarvestFeeOperation(makeCtx(true), args);
-  assertBuiltOperationShape(existing, { label: "vault:harvest-fee" });
-  // all LP accounts exist -> just harvest
-  assert.equal(existing.instructions.length, 1);
+  assertBuiltOperationShape(existing, {
+    label: "vault:harvest-fee",
+    minInstructions: 4,
+  });
+  // Existing LP accounts still receive idempotent create instructions.
+  assert.equal(existing.instructions.length, 4);
+  assert.equal(
+    existing.instructions
+      .slice(0, 3)
+      .filter(
+        (instruction) =>
+          instruction.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS
+      ).length,
+    3
+  );
 });
 
 test("cancel-request-withdraw and accept-admin build a single instruction", async () => {

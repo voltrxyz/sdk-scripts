@@ -83,7 +83,6 @@ export async function buildSpotEarnInitOperation(
   });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: earn.vaultStrategyAuth,
@@ -91,7 +90,6 @@ export async function buildSpotEarnInitOperation(
     tokenProgram: args.assetTokenProgram,
   });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: earn.fTokenMint,
     owner: earn.vaultStrategyAuth,

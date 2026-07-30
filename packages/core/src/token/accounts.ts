@@ -8,10 +8,13 @@ import {
   type Instruction,
   type TransactionSigner,
 } from "@solana/kit";
-import type { SolanaRpc } from "../types.js";
 
+/**
+ * Derives an associated token account and appends its idempotent create
+ * instruction. The instruction is an onchain no-op when the account already
+ * exists, so operation builders can set up token accounts without an RPC read.
+ */
 export async function setupTokenAccount(args: {
-  rpc: SolanaRpc;
   payer: TransactionSigner;
   mint: Address;
   owner: Address;
@@ -25,18 +28,14 @@ export async function setupTokenAccount(args: {
     tokenProgram,
   });
 
-  const accountInfo = await args.rpc.getAccountInfo(ata).send();
-  if (!accountInfo.value) {
-    args.instructions.push(
-      await getCreateAssociatedTokenIdempotentInstructionAsync({
-        payer: args.payer,
-        owner: args.owner,
-        mint: args.mint,
-        tokenProgram,
-      })
-    );
-  }
+  args.instructions.push(
+    await getCreateAssociatedTokenIdempotentInstructionAsync({
+      payer: args.payer,
+      owner: args.owner,
+      mint: args.mint,
+      tokenProgram,
+    })
+  );
 
   return ata;
 }
-

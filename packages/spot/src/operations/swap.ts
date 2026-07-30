@@ -75,7 +75,6 @@ export async function buildSpotSwapInitOperation(
   });
 
   const vaultStrategyAssetAta = await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -83,7 +82,6 @@ export async function buildSpotSwapInitOperation(
     tokenProgram: args.assetTokenProgram,
   });
   const vaultStrategyForeignAta = await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.foreignMint,
     owner: vaultStrategyAuth,
@@ -150,7 +148,6 @@ async function buildSpotSwapDirectionOperation(
   // The swap CPIs through the strategy's asset and foreign token accounts; make
   // sure both exist before the deposit/withdraw runs.
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -158,7 +155,6 @@ async function buildSpotSwapDirectionOperation(
     tokenProgram: args.assetTokenProgram,
   });
   const vaultStrategyForeignAta = await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.foreignMint,
     owner: vaultStrategyAuth,

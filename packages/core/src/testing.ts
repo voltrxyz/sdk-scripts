@@ -20,15 +20,14 @@ const FAKE_TOKEN_PROGRAM = address(
   "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 );
 
-// Truthy stand-in for an existing account. `setupTokenAccount` (and most
-// builders) only test `getAccountInfo(...).value` for existence.
+// Truthy stand-in for tests that exercise builders and decoders with
+// account-existence-dependent RPC reads.
 const FAKE_ACCOUNT_INFO = { lamports: 1n };
 
 export interface FakeRpcOptions {
   /**
    * Addresses that should report as already existing. Any address NOT listed
-   * resolves to `{ value: null }`, which makes idempotent-create helpers emit a
-   * create instruction (exercising more of the builder).
+   * resolves to `{ value: null }`.
    */
   existingAccounts?: Iterable<Address | string>;
   /** Full override of `getAccountInfo(addr).send()`. Takes precedence. */

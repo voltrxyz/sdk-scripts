@@ -63,7 +63,6 @@ export async function buildKaminoMarketInitOperation(
 
   const instructions: Instruction[] = [];
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -71,7 +70,6 @@ export async function buildKaminoMarketInitOperation(
     tokenProgram: args.assetTokenProgram,
   });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: args.manager.address,
@@ -145,7 +143,6 @@ export async function buildKaminoMarketDepositOperation(
 
   const instructions: Instruction[] = [];
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -228,7 +225,6 @@ export async function buildKaminoMarketWithdrawOperation(
 
   const instructions: Instruction[] = [];
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,

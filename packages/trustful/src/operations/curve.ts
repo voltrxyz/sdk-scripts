@@ -135,7 +135,6 @@ export async function buildTrustfulCurveInitOperation(
   const instructions: Instruction[] = [];
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: withdrawalHoldingAuth,
@@ -144,7 +143,6 @@ export async function buildTrustfulCurveInitOperation(
   });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -153,7 +151,6 @@ export async function buildTrustfulCurveInitOperation(
   });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: args.manager.address,
@@ -212,7 +209,6 @@ export async function buildTrustfulCurveBorrowOperation(
   const instructions: Instruction[] = [];
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -221,7 +217,6 @@ export async function buildTrustfulCurveBorrowOperation(
   });
 
   const managerAssetAta = await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: args.manager.address,
@@ -287,7 +282,6 @@ export async function buildTrustfulCurveRepayOperation(
   const instructions: Instruction[] = [];
 
   const withdrawalHoldingAccount = await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: withdrawalHoldingAuth,
@@ -296,7 +290,6 @@ export async function buildTrustfulCurveRepayOperation(
   });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,

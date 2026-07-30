@@ -46,7 +46,6 @@ export async function buildTrustfulArbitraryInitOperation(
   const instructions: Instruction[] = [];
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -109,7 +108,6 @@ export async function buildTrustfulArbitraryDepositOperation(
   const instructions: Instruction[] = [];
 
   const withdrawalHoldingAccount = await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: withdrawalHoldingAuth,
@@ -118,7 +116,6 @@ export async function buildTrustfulArbitraryDepositOperation(
   });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,
@@ -184,7 +181,6 @@ export async function buildTrustfulArbitraryWithdrawOperation(
   const instructions: Instruction[] = [];
 
   const withdrawalHoldingAccount = await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: withdrawalHoldingAuth,
@@ -193,7 +189,6 @@ export async function buildTrustfulArbitraryWithdrawOperation(
   });
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.manager,
     mint: args.assetMint,
     owner: vaultStrategyAuth,

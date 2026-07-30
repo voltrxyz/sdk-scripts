@@ -65,7 +65,6 @@ export async function buildDepositVaultOperation(
 
   const [vaultLpMint] = await findVaultLpMintPda({ vault: args.vault });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: vaultLpMint,
     owner: args.user.address,
@@ -131,7 +130,6 @@ export async function buildRequestWithdrawVaultOperation(
 
   // The LP escrow ATA is owned by the request-withdraw receipt PDA, not the user.
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: vaultLpMint,
     owner: requestWithdrawVaultReceipt,
@@ -264,7 +262,6 @@ export async function buildInstantWithdrawVaultOperation(
   const instructions: Instruction[] = [];
 
   const userAssetAta = await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.user,
     mint: args.assetMint,
     owner: args.user.address,

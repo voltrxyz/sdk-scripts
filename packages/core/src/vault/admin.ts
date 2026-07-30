@@ -266,21 +266,18 @@ export async function buildHarvestFeeOperation(
   const protocolTreasury = args.protocolTreasury ?? PROTOCOL_TREASURY;
 
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.admin,
     mint: lpMint,
     owner: args.admin.address,
     instructions,
   });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.admin,
     mint: lpMint,
     owner: args.manager,
     instructions,
   });
   await setupTokenAccount({
-    rpc: ctx.rpc,
     payer: args.admin,
     mint: lpMint,
     owner: protocolTreasury,

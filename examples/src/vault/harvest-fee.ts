@@ -1,11 +1,11 @@
 /**
- * vault:harvest-fee — ensure the admin, manager, and protocol-treasury LP token
- * accounts exist (reads RPC in print mode), then harvest accrued fees into them.
- * MANAGER receives the manager fee share; omitting protocolTreasury defaults to
- * PROTOCOL_TREASURY.
+ * vault:harvest-fee — idempotently ensure the admin, manager, and
+ * protocol-treasury LP token accounts exist, then harvest accrued fees into
+ * them. MANAGER receives the manager fee share; omitting protocolTreasury
+ * defaults to PROTOCOL_TREASURY.
  *
  * Run:   pnpm exec tsx examples/src/vault/harvest-fee.ts   (or: pnpm example -- vault:harvest-fee)
- * Needs: profile vault.vaultAddress; ADMIN_KEYPAIR; RPC_URL.
+ * Needs: profile vault.vaultAddress; ADMIN_KEYPAIR.
  * Mode:  defaults to print (--mode execute / VOLTR_MODE=execute to send).
  */
 import {
