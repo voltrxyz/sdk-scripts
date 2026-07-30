@@ -99,6 +99,7 @@ Run any file with `pnpm exec tsx <path>`, or by name with `pnpm example -- <name
 prints this catalog live.
 
 ### Vault / core
+
 | File | Role | Purpose |
 | --- | --- | --- |
 | `src/vault/initialize.ts` | admin | Initialize a vault; prints the generated address. |
@@ -109,8 +110,25 @@ prints this catalog live.
 | `src/vault/cancel-request-withdraw.ts` | user | Cancel an outstanding request. |
 | `src/vault/query-position.ts` | read-only | Read a user's position. |
 | `src/vault/query-strategy-positions.ts` | read-only | Read per-strategy allocation. |
+| `src/vault/initialize-with-metadata.ts` | admin | Initialize a vault with LP token metadata; prints the generated address. |
+| `src/vault/set-token-metadata.ts` | admin | Create LP token metadata for an initialized vault. |
+| `src/vault/update-config.ts` | admin | Update one vault configuration field. |
+| `src/vault/accept-admin.ts` | admin | Accept the pending-admin role for a vault. |
+| `src/vault/harvest-fee.ts` | admin | Harvest accrued vault fees into LP token accounts. |
+| `src/vault/add-adaptor.ts` | admin | Register an adaptor program on a vault. |
+| `src/vault/remove-adaptor.ts` | admin | Deregister an adaptor program from a vault. |
+| `src/vault/update-adaptor-policy.ts` | admin (protocol) | Update a vault's adaptor policy. |
+
+### Protocol
+
+| File | Role | Purpose |
+| --- | --- | --- |
+| `src/protocol/update-treasury.ts` | admin | Update the protocol treasury that receives harvested fees. |
+| `src/protocol/set-pending-admin.ts` | admin | Start a protocol-admin transfer. |
+| `src/protocol/accept-admin.ts` | admin | Complete a protocol-admin transfer as the incoming admin. |
 
 ### Kamino
+
 | File | Role | Purpose |
 | --- | --- | --- |
 | `src/kamino/market-init.ts` | manager | Initialize a lending-market strategy. |
@@ -123,6 +141,7 @@ prints this catalog live.
 | `src/kamino/kvault-claim-reward.ts` | manager | Claim a kvault farm reward (optional Jupiter swap). |
 | `src/kamino/kvault-direct-withdraw.ts` | user | User direct-withdraw from a kvault. |
 | `src/kamino/kvault-request-and-direct-withdraw.ts` | user | Request + direct-withdraw in one tx. |
+| `src/kamino/kvault-init-direct-withdraw.ts` | admin | Register a kvault as a direct-withdraw strategy. |
 
 ### Spot
 | File | Role | Purpose |

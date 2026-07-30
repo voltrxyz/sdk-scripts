@@ -65,6 +65,7 @@ export const DEFAULT_MODE: TxMode = "print";
 
 export type ExampleGroup =
   | "vault"
+  | "protocol"
   | "kamino"
   | "spot"
   | "trustful"

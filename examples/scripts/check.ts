@@ -38,7 +38,14 @@ import {
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const EXAMPLES_SRC = join(REPO_ROOT, "examples", "src");
 
-const VALID_GROUPS = new Set(["vault", "kamino", "spot", "trustful", "composition"]);
+const VALID_GROUPS = new Set([
+  "vault",
+  "protocol",
+  "kamino",
+  "spot",
+  "trustful",
+  "composition",
+]);
 const VALID_ROLES = new Set(["admin", "manager", "user", "none"]);
 const VALID_NETWORKS = new Set(["none", "rpc-read", "rpc-and-http"]);
 
