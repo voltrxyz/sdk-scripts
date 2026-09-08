@@ -39,6 +39,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const EXAMPLES_SRC = join(REPO_ROOT, "examples", "src");
 
 const VALID_GROUPS = new Set([
+  "neutral",
   "vault",
   "protocol",
   "kamino",

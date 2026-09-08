@@ -15,6 +15,43 @@ export interface RegistryEntry extends ExampleMeta {
 }
 
 export const registry: RegistryEntry[] = [
+  { name: "neutral:bundle-status", file: "examples/src/neutral/bundle-status.ts", group: "neutral", role: "none", network: "rpc-read", summary: "Read Neutral pending requests, available tokens and accounting state.", transactional: false, offline: false, load: () => import("./neutral/bundle-status.js") },
+  {
+    name: "neutral:bundle-register-depositor", file: "examples/src/neutral/bundle-register-depositor.ts",
+    group: "neutral", role: "manager", network: "rpc-read",
+    summary: "Neutral bundle register-depositor; uses live bundle state.", transactional: true, offline: false,
+    load: () => import("./neutral/bundle-register-depositor.js"),
+  },
+  {
+    name: "neutral:bundle-claim", file: "examples/src/neutral/bundle-claim.ts",
+    group: "neutral", role: "manager", network: "rpc-read",
+    summary: "Neutral bundle claim; uses live bundle state.", transactional: true, offline: false,
+    load: () => import("./neutral/bundle-claim.js"),
+  },
+  {
+    name: "neutral:bundle-request-withdraw", file: "examples/src/neutral/bundle-request-withdraw.ts",
+    group: "neutral", role: "manager", network: "rpc-read",
+    summary: "Neutral bundle request-withdraw; uses live bundle state.", transactional: true, offline: false,
+    load: () => import("./neutral/bundle-request-withdraw.js"),
+  },
+  {
+    name: "neutral:bundle-refresh", file: "examples/src/neutral/bundle-refresh.ts",
+    group: "neutral", role: "manager", network: "rpc-read",
+    summary: "Neutral bundle refresh; uses live bundle state.", transactional: true, offline: false,
+    load: () => import("./neutral/bundle-refresh.js"),
+  },
+  {
+    name: "neutral:bundle-deposit", file: "examples/src/neutral/bundle-deposit.ts",
+    group: "neutral", role: "manager", network: "rpc-read",
+    summary: "Neutral bundle deposit; uses live bundle state.", transactional: true, offline: false,
+    load: () => import("./neutral/bundle-deposit.js"),
+  },
+  {
+    name: "neutral:bundle-init", file: "examples/src/neutral/bundle-init.ts",
+    group: "neutral", role: "manager", network: "rpc-read",
+    summary: "Neutral bundle init; uses live bundle state.", transactional: true, offline: false,
+    load: () => import("./neutral/bundle-init.js"),
+  },
   // Vault / core
   {
     name: "vault:initialize",

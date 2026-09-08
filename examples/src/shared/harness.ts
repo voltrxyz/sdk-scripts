@@ -64,6 +64,7 @@ export const TX_MODES: readonly TxMode[] = [
 export const DEFAULT_MODE: TxMode = "print";
 
 export type ExampleGroup =
+  | "neutral"
   | "vault"
   | "protocol"
   | "kamino"

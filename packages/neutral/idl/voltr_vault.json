@@ -1,0 +1,127 @@
+{
+  "address": "vVoLTRjQmtFpiYoegx285Ze4gsLJ8ZxgFKVcuvmG1a8",
+  "metadata": {
+    "name": "voltr_vault",
+    "version": "0.2.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [],
+  "accounts": [
+    {
+      "name": "StrategyInitReceipt",
+      "discriminator": [
+        51,
+        8,
+        192,
+        253,
+        115,
+        78,
+        112,
+        214
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "StrategyInitReceipt",
+      "serialization": "bytemuckunsafe",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "docs": [
+              "The vault associated with this strategy."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "strategy",
+            "docs": [
+              "The strategy address."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "adaptor_program",
+            "docs": [
+              "The adaptor program address."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "position_value",
+            "docs": [
+              "The position value."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_updated_ts",
+            "docs": [
+              "The last updated timestamp."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "version",
+            "docs": [
+              "A version number (1 byte)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "The bump for the strategy init receipt."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "vault_strategy_auth_bump",
+            "docs": [
+              "The bump for the vault strategy auth."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_padding0",
+            "docs": [
+              "5 bytes of padding to align future 8-byte fields on 8-byte boundaries."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                5
+              ]
+            }
+          },
+          {
+            "name": "last_accounted_strategy_ata_amount",
+            "docs": [
+              "The strategy ATA amount included in the preceding accounting snapshot.",
+              "This reuses the first 8 bytes of the v1 reserved region."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved space for future fields."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                56
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

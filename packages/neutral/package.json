@@ -1,0 +1,32 @@
+{
+  "name": "@voltr/scripts-neutral",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "TSX_TSCONFIG_PATH=../../tsconfig.check.json node --import tsx --test \"src/**/*.test.ts\"",
+    "generate": "node codama.mjs"
+  },
+  "dependencies": {
+    "@solana-program/token": "^0.13.0",
+    "@solana/kit": "^6.10.0",
+    "@voltr/scripts-core": "workspace:*",
+    "@voltr/vault-sdk": "^2.1.1",
+    "@solana/program-client-core": "^6.10.0"
+  },
+  "devDependencies": {
+    "codama": "1.5.1",
+    "@codama/nodes-from-anchor": "1.4.0",
+    "@codama/renderers-js": "2.1.0"
+  }
+}

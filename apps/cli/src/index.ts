@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { registerCheckCommand } from "./commands/check.js";
 import { registerKaminoCommands } from "./commands/kamino.js";
+import { registerNeutralCommands } from "./commands/neutral.js";
 import { registerSpotCommands } from "./commands/spot.js";
 import { registerTrustfulCommands } from "./commands/trustful.js";
 import { registerVaultCommands } from "./commands/vault.js";
@@ -25,6 +26,7 @@ export function createProgram(): Command {
         "  protocol:*  protocol admin operations",
         "  vault:*     shared Voltr vault operations",
         "  kamino:*    Kamino market / kvault strategies",
+        "  neutral:*   Neutral bundle deposits and asynchronous redemptions",
         "  spot:*      Spot / Earn strategies",
         "  trustful:*  Trustful arbitrary / curve strategies",
         "",
@@ -40,6 +42,7 @@ export function createProgram(): Command {
   registerVaultCommands(program);
   registerKaminoCommands(program);
   registerSpotCommands(program);
+  registerNeutralCommands(program);
   registerTrustfulCommands(program);
   registerCheckCommand(program);
 

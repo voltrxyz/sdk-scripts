@@ -90,11 +90,14 @@ export const TrustfulIntegrationSchema = z
   })
   .strict();
 
+export const NeutralIntegrationSchema = z.object({ bundleAddress: OptionalAddressSchema }).strict();
+
 export const IntegrationsSchema = z
   .object({
     kamino: KaminoIntegrationSchema.optional(),
     spot: SpotIntegrationSchema.optional(),
     trustful: TrustfulIntegrationSchema.optional(),
+    neutral: NeutralIntegrationSchema.optional(),
   })
   .strict();
 
@@ -389,4 +392,10 @@ export function requireTrustfulIntegration(
     );
   }
   return { strategySeedString: section.strategySeedString };
+}
+
+export function requireNeutralBundle(profile: ScriptProfile, options?: AccessOptions): Address {
+  const bundle = profile.integrations?.neutral?.bundleAddress;
+  if (!bundle) throw new ProfileFieldError(profile.name, "integrations.neutral.bundleAddress", options);
+  return address(bundle);
 }

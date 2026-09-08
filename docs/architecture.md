@@ -117,7 +117,7 @@ parallel consumer of the packages, not part of the CLI.
 
 ## Adapter package standard
 
-All three adapter packages (`kamino`, `spot`, `trustful`) follow one layout and
+The adapter packages (`kamino`, `spot`, `trustful`, `neutral`) follow one layout and
 naming convention so adding a new integration is a predictable copy.
 
 ### Directory layout
@@ -261,8 +261,8 @@ interface BuiltOperation {
 
 Rules:
 
-- `<adapter>` is the package name: `kamino`, `spot`, `trustful`.
-- `<strategy>` is the adapter-internal flavor: `market` / `kvault` (Kamino); `swap` / `earn` (Spot); `arbitrary` / `curve` (Trustful). Never repeat the adapter as the domain (no `spot:spot:*`).
+- `<adapter>` is the package name: `kamino`, `spot`, `trustful`, `neutral`.
+- `<strategy>` is the adapter-internal flavor: `market` / `kvault` (Kamino); `swap` / `earn` (Spot); `arbitrary` / `curve` (Trustful); `bundle` (Neutral). Never repeat the adapter as the domain (no `spot:spot:*`).
 - `<action>` is a singular, imperative verb: `init`, `deposit`, `withdraw`, `buy`, `sell`, `borrow`, `repay`, `remove`, `claim-reward`, `direct-withdraw`, `request-withdraw`, `cancel-request-withdraw`, `harvest-fee`, etc. Use the singular form even when the protocol instruction is plural (`claim-reward`, not `claim-rewards`).
 - The signer role is carried by the `--<role>-keypair` flag, not the domain segment, so a user-signed flow lives under the strategy domain it acts on (the Kamino kvault direct-withdraws are `kamino:kvault:direct-withdraw` and `kamino:kvault:request-and-direct-withdraw`, not a separate `kamino:user:*` domain).
 - For queries, the literal segment `query` marks the command as side-effect free. The noun that follows describes what is read (`position`, `reserve`, `strategy-positions`, `oracle`).
@@ -401,9 +401,12 @@ export function registerKaminoCommands(program: Command): void {
 
 ## Independence between adapters
 
-Kamino, Spot, and Trustful are independent:
+Kamino, Spot, Trustful, and Neutral are independent:
 
 - Each adapter lives in its own `packages/<name>` directory and ships its own `package.json` with its own SDK dependencies.
 - None of the adapter packages import each other.
 - Shared changes go to `packages/core`. If two adapters both need a new core helper, coordinate that change separately from the adapter work.
 - When adapter work needs shared code, prefer the smallest possible addition to `core` (a new helper, a new field on `ScriptProfile`) and avoid refactoring core types that would force the other adapters to change.
+
+Neutral uses the same builder contract in `packages/neutral`, with separate request and claim operations.
+See [Neutral bundle operations](neutral.md).

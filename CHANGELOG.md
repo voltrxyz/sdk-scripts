@@ -16,3 +16,9 @@
 - Fetch a recent blockhash before building a multisig transaction.
 - Report the serialized transaction size and reject payloads above Solana's
   transaction size limit.
+
+## Neutral bundle integration
+
+- Add Neutral operation builders, profile validation, CLI commands and programmatic examples.
+- Validate foreign accounts and version-2 receipts; expose pending requests and available settlement tokens.
+- Add permissioned registration by the Neutral manager and separate withdrawal request and claim flows.

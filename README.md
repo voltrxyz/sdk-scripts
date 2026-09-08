@@ -10,7 +10,7 @@ never edited to change runtime values.
 - **One CLI** (`apps/cli`) exposes every operation as a `<group>:<action>` command.
 - **Shared vault behavior** — signers, RPC, token accounts, lookup tables, and
   transaction modes — lives in `packages/core`.
-- **Each integration** (Kamino, Spot, Trustful) is an adapter package that owns
+- **Each integration** (Kamino, Spot, Trustful, Neutral) is an adapter package that owns
   only its protocol-specific account derivation and instruction building.
 
 ## Install
@@ -127,8 +127,13 @@ pnpm cli -- vault:deposit --help   # flags for a single command
 ```
 
 Commands are grouped by `<group>:*` prefix (`protocol:`, `vault:`, `kamino:`,
-`spot:`, `trustful:`, plus the maintenance command `check`). Transaction commands
+`spot:`, `trustful:`, `neutral:`, plus the maintenance command `check`). Transaction commands
 take the global options (`--profile`, `--rpc-url`, `--mode`, priority-fee flags);
 `protocol:*` commands do not need `--profile`. The
 [operator guide](./docs/operator-guide.md) explains what each option does and
 walks through the common workflows.
+
+## Neutral bundles
+
+Operate Neutral bundle deposits, refreshes, redemption requests and claims with `neutral:bundle:*`.
+See [the Neutral guide](docs/neutral.md) for permissioned registration, profiles and keeper settlement.

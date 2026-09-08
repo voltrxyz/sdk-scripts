@@ -15,6 +15,7 @@
       "@voltr/scripts-core/testing": ["./packages/core/src/testing.ts"],
       "@voltr/scripts-kamino": ["./packages/kamino/src/index.ts"],
       "@voltr/scripts-spot": ["./packages/spot/src/index.ts"],
+      "@voltr/scripts-neutral": ["./packages/neutral/src/index.ts"],
       "@voltr/scripts-trustful": ["./packages/trustful/src/index.ts"]
     }
   },

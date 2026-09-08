@@ -447,3 +447,8 @@ pnpm cli -- --profile configs/my-vault.json --mode execute trustful:curve:remove
 For the exact flags of any command, run `pnpm cli -- <command> --help` — the CLI
 is the authoritative reference and stays in sync with the implementation. `pnpm
 cli -- --help` lists every command grouped by prefix.
+
+## Neutral bundles
+
+Use the [Neutral bundle guide](neutral.md) for `neutral:bundle:*` commands, permissioned registration and
+the request / keeper settlement / claim lifecycle. These commands use the shared transaction modes.

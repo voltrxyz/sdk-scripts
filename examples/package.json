@@ -11,6 +11,7 @@
     "@voltr/scripts-core": "workspace:*",
     "@voltr/scripts-kamino": "workspace:*",
     "@voltr/scripts-spot": "workspace:*",
-    "@voltr/scripts-trustful": "workspace:*"
+    "@voltr/scripts-trustful": "workspace:*",
+    "@voltr/scripts-neutral": "workspace:*"
   }
 }

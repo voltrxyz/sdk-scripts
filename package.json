@@ -21,7 +21,14 @@
   },
   "pnpm": {
     "overrides": {
-      "@kamino-finance/farms-sdk": "3.2.24"
+      "@kamino-finance/farms-sdk": "3.2.24",
+      "@codama/errors": "1.5.1",
+      "@codama/node-types": "1.5.1",
+      "@codama/nodes": "1.5.1",
+      "@codama/renderers-core": "1.3.9",
+      "@codama/validators": "1.5.1",
+      "@codama/visitors": "1.5.1",
+      "@codama/visitors-core": "1.5.1"
     }
   }
 }

@@ -1,0 +1,15 @@
+{
+  "name": "neutral-mainnet",
+  "cluster": "mainnet-beta",
+  "vault": {
+    "vaultAddress": "",
+    "assetMintAddress": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "assetTokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "useLookupTable": false
+  },
+  "integrations": {
+    "neutral": {
+      "bundleAddress": ""
+    }
+  }
+}

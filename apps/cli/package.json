@@ -17,7 +17,7 @@
     "@voltr/scripts-kamino": "workspace:*",
     "@voltr/scripts-spot": "workspace:*",
     "@voltr/scripts-trustful": "workspace:*",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "@voltr/scripts-neutral": "workspace:*"
   }
 }
-

@@ -207,3 +207,8 @@ the integration entry points (`@voltr/scripts-kamino`, `@voltr/scripts-spot`,
 Actually sending transactions (a real Kamino reserve flow, a live Jupiter swap,
 `VOLTR_MODE=execute`) needs a funded keypair and a working RPC and is out of
 scope for the automated check — run those manually.
+
+## Neutral examples
+
+`examples/src/neutral` covers registration, initialization, deposit, refresh, redemption request, claim
+and status. Each example reads live account state; see [the Neutral guide](../docs/neutral.md).

@@ -1,0 +1,461 @@
+{
+  "address": "BUNDDh4P5XviMm1f3gCvnq2qKx6TGosAGnoUK12e7cXU",
+  "metadata": {
+    "name": "ntbundle",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "initialize_permissioned_bundle_depositor",
+      "discriminator": [
+        157,
+        162,
+        213,
+        42,
+        205,
+        201,
+        37,
+        255
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "bundle_account",
+          "writable": true
+        },
+        {
+          "name": "user_bundle_account",
+          "docs": [
+            "each user gets one UserBundleAccount account; it will be created if it doesn't exist."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  85,
+                  83,
+                  69,
+                  82,
+                  95,
+                  66,
+                  85,
+                  78,
+                  68,
+                  76,
+                  69
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "account",
+                "path": "bundle_account"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Bundle",
+      "discriminator": [
+        15,
+        82,
+        167,
+        230,
+        37,
+        214,
+        82,
+        80
+      ]
+    },
+    {
+      "name": "OracleData",
+      "discriminator": [
+        26,
+        131,
+        25,
+        110,
+        6,
+        141,
+        10,
+        37
+      ]
+    },
+    {
+      "name": "UserBundleAccount",
+      "discriminator": [
+        32,
+        181,
+        106,
+        26,
+        67,
+        130,
+        185,
+        241
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "Bundle",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "name",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "manager",
+            "type": "pubkey"
+          },
+          {
+            "name": "keeper",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "allocated_receivers",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "bundle_underlying_balance",
+            "type": "u64"
+          },
+          {
+            "name": "max_deposit_amount",
+            "type": "u64"
+          },
+          {
+            "name": "withdrawal_delay",
+            "type": "u64"
+          },
+          {
+            "name": "performance_fee",
+            "type": "u32"
+          },
+          {
+            "name": "management_fee_bps",
+            "type": "u32"
+          },
+          {
+            "name": "deposit_fee",
+            "type": "u32"
+          },
+          {
+            "name": "withdrawal_fee",
+            "type": "u32"
+          },
+          {
+            "name": "manager_pfee_shares",
+            "type": "u128"
+          },
+          {
+            "name": "current_allocation_bps",
+            "type": "u32"
+          },
+          {
+            "name": "oracle_buffer",
+            "type": "u64"
+          },
+          {
+            "name": "total_shares",
+            "type": "u128"
+          },
+          {
+            "name": "asset_precision",
+            "type": "u64"
+          },
+          {
+            "name": "asset_address",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset_decimals",
+            "type": "u8"
+          },
+          {
+            "name": "withdrawal_t_min",
+            "type": "i64"
+          },
+          {
+            "name": "withdrawal_t_max",
+            "type": "i64"
+          },
+          {
+            "name": "withdrawal_curve",
+            "type": "f32"
+          },
+          {
+            "name": "permissionned",
+            "type": "bool"
+          },
+          {
+            "name": "manager_mfee_shares",
+            "type": "u128"
+          },
+          {
+            "name": "min_deposit_amount",
+            "type": "u64"
+          },
+          {
+            "name": "oracle_update_time_limit",
+            "type": "i64"
+          },
+          {
+            "name": "oracle_max_age",
+            "type": "i64"
+          },
+          {
+            "name": "withdrawal_redemption_request_cutoff_ts",
+            "type": "i64"
+          },
+          {
+            "name": "withdrawal_redemption_unlock_current_cycle_ts",
+            "type": "i64"
+          },
+          {
+            "name": "withdrawal_redemption_unlock_next_cycle_ts",
+            "type": "i64"
+          },
+          {
+            "name": "referrer_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "referrer_min_deposit_amount",
+            "type": "u64"
+          },
+          {
+            "name": "referral_tiers",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "ReferralTier"
+                  }
+                },
+                5
+              ]
+            }
+          },
+          {
+            "name": "tier_count",
+            "type": "u8"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                117
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "average_external_equity",
+            "type": "u64"
+          },
+          {
+            "name": "last_update_time",
+            "type": "i64"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReferralTier",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "threshold",
+            "type": "u64"
+          },
+          {
+            "name": "pfee_bps",
+            "type": "u32"
+          },
+          {
+            "name": "mfee_bps",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserBundleAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "last_deposit_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "shares",
+            "type": "u128"
+          },
+          {
+            "name": "pending_deposit",
+            "type": "u64"
+          },
+          {
+            "name": "pending_shares",
+            "type": "u128"
+          },
+          {
+            "name": "estimated_pending_withdrawal_value",
+            "type": "u64"
+          },
+          {
+            "name": "withdrawal_available_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "last_withdrawal_process_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "last_high_water_mark",
+            "type": "u128"
+          },
+          {
+            "name": "hwm_per_share",
+            "type": "u128"
+          },
+          {
+            "name": "last_management_fee_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "net_deposits",
+            "type": "i128"
+          },
+          {
+            "name": "total_fee_charged",
+            "type": "u64"
+          },
+          {
+            "name": "custom_deposit_fee_bps",
+            "type": "u32"
+          },
+          {
+            "name": "custom_withdrawal_fee_bps",
+            "type": "u32"
+          },
+          {
+            "name": "custom_performance_fee_bps",
+            "type": "u32"
+          },
+          {
+            "name": "custom_management_fee_bps",
+            "type": "u32"
+          },
+          {
+            "name": "fee_override_flags",
+            "type": "u8"
+          },
+          {
+            "name": "custom_withdrawal_delay",
+            "type": "u64"
+          },
+          {
+            "name": "custom_withdrawal_t_min",
+            "type": "i64"
+          },
+          {
+            "name": "custom_withdrawal_t_max",
+            "type": "i64"
+          },
+          {
+            "name": "custom_withdrawal_curve",
+            "type": "f32"
+          },
+          {
+            "name": "withdrawal_timing_override_flags",
+            "type": "u8"
+          },
+          {
+            "name": "switch_active",
+            "type": "bool"
+          },
+          {
+            "name": "switch_target_bundle",
+            "type": "pubkey"
+          },
+          {
+            "name": "switch_created_at",
+            "type": "i64"
+          },
+          {
+            "name": "referrer",
+            "type": "pubkey"
+          },
+          {
+            "name": "padding",
+            "type": {
+              "array": [
+                "u8",
+                145
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
