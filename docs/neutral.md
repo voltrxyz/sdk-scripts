@@ -8,7 +8,7 @@ Neutral-managed Kamino vaults.
 
 ## Configure and register
 
-Copy `configs/examples/neutral.mainnet.example.json` to your own profile. Set
+Copy `configs/examples/usdc.mainnet.example.json` to your own profile. Set
 `vault.vaultAddress` and `integrations.neutral.bundleAddress`. Set the asset mint to the bundle's asset;
 the example uses USDC. The adaptor supports the Classic Token Program. Add a vault lookup table to
 the profile when needed; the shared processor handles transaction modes and compute estimates.

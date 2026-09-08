@@ -15,6 +15,9 @@
       "kvaultAddress": "",
       "directWithdrawDiscriminator": []
     },
+    "neutral": {
+      "bundleAddress": ""
+    },
     "spot": {
       "foreignMintAddress": "",
       "foreignTokenProgram": "",
