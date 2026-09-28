@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Fix the protocol treasury constant: `PROTOCOL_TREASURY` now mirrors the live
+  `Protocol.treasury` (`C7sE…`). The harvest instruction rejects any other
+  address, so `vault:harvest-fee` failed onchain with the previous value.
+- `buildHarvestFeeOperation` now takes `harvester` (any funded signer —
+  harvest is permissionless), `vaultAdmin`, `manager`, and an optional
+  `protocolTreasury`, matching the onchain accounts instead of assuming the
+  signer is the vault admin. `vault:harvest-fee` gains `--vault-admin` and
+  `--treasury` overrides.
+- Add `protocol:query:fee-vaults` (every vault with a protocol fee, its
+  recipients and accrued LP fees, plus the live protocol config) and
+  `protocol:harvest-fee` (one harvest transaction per protocol-fee vault with
+  the recipients read live from chain), backed by `queryProtocolConfig` /
+  `queryProtocolFeeVaults` in core, with matching examples.
 - Token-account setup now always emits the idempotent create instruction (an
   onchain no-op when the account exists) instead of probing the chain. This
   fixes the base58 `>128 bytes` RPC error every builder hit when a checked

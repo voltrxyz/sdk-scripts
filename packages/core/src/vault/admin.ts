@@ -243,11 +243,13 @@ export async function buildAcceptVaultAdminOperation(
 }
 
 export interface HarvestFeeArgs {
-  /** Harvester + vault admin + fee payer; the admin signs and pays. */
-  admin: KeyPairSigner;
-  /** Vault manager address (receives the manager fee share). */
+  /** Signs and pays (tx fee + rent for missing LP ATAs). Harvest is permissionless, so any funded keypair works. */
+  harvester: KeyPairSigner;
+  /** Vault admin address as stored on the vault (receives the admin fee share). */
+  vaultAdmin: Address;
+  /** Vault manager address as stored on the vault (receives the manager fee share). */
   manager: Address;
-  /** Protocol treasury address (receives the protocol fee share). */
+  /** Protocol treasury as stored on the protocol account (receives the protocol share). Defaults to PROTOCOL_TREASURY. */
   protocolTreasury?: Address;
   vault: Address;
   lookupTableAddresses?: Address[];
@@ -258,7 +260,7 @@ export interface HarvestFeeArgs {
  * admin, vault manager, and protocol treasury exist, then harvests fees into them.
  */
 export async function buildHarvestFeeOperation(
-  ctx: ScriptContext,
+  _ctx: ScriptContext,
   args: HarvestFeeArgs
 ): Promise<BuiltOperation> {
   const instructions: Instruction[] = [];
@@ -266,19 +268,19 @@ export async function buildHarvestFeeOperation(
   const protocolTreasury = args.protocolTreasury ?? PROTOCOL_TREASURY;
 
   await setupTokenAccount({
-    payer: args.admin,
+    payer: args.harvester,
     mint: lpMint,
-    owner: args.admin.address,
+    owner: args.vaultAdmin,
     instructions,
   });
   await setupTokenAccount({
-    payer: args.admin,
+    payer: args.harvester,
     mint: lpMint,
     owner: args.manager,
     instructions,
   });
   await setupTokenAccount({
-    payer: args.admin,
+    payer: args.harvester,
     mint: lpMint,
     owner: protocolTreasury,
     instructions,
@@ -286,9 +288,9 @@ export async function buildHarvestFeeOperation(
 
   instructions.push(
     await getHarvestFeeInstructionAsync({
-      harvester: args.admin,
+      harvester: args.harvester,
       vaultManager: args.manager,
-      vaultAdmin: args.admin.address,
+      vaultAdmin: args.vaultAdmin,
       protocolTreasury,
       vault: args.vault,
     })

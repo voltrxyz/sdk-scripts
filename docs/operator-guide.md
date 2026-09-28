@@ -86,7 +86,7 @@ command fails up front, naming both:
 
 | Role | Flag | Env var | Used by |
 | --- | --- | --- | --- |
-| `admin` | `--admin-keypair` | `ADMIN_KEYPAIR` | vault admin commands and protocol admin commands |
+| `admin` | `--admin-keypair` | `ADMIN_KEYPAIR` | vault admin commands, protocol admin commands, and fee harvesting (any funded keypair) |
 | `manager` | `--manager-keypair` | `MANAGER_KEYPAIR` | strategy operations (Kamino/Spot/Trustful, claims) |
 | `user` | `--user-keypair` | `USER_KEYPAIR` | deposit/withdraw, direct-withdraw |
 
@@ -263,7 +263,11 @@ pnpm cli -- --profile configs/my-vault.json --mode execute \
 # Accept a pending admin transfer (the pending admin signs):
 pnpm cli -- --profile configs/my-vault.json --mode execute vault:accept-admin
 
-# Harvest accrued fees to the manager and protocol treasury:
+# Harvest accrued fees into the admin, manager, and protocol-treasury LP
+# accounts. Harvest is permissionless (the signer only pays fees + rent); the
+# signer is assumed to be the vault admin — add --vault-admin / --treasury when
+# the onchain recipients differ. See "Protocol fee harvesting" below to harvest
+# every protocol-fee vault with the recipients read live from chain.
 pnpm cli -- --profile configs/my-vault.json --mode execute \
   vault:harvest-fee --manager <MANAGER_PUBKEY>
 ```
@@ -304,6 +308,35 @@ pnpm cli -- --mode execute \
 Setting `--allow-any-adaptor 0` only blocks future unlisted adaptor additions.
 Adaptor receipts created while the flag was `1` remain registered until the vault
 admin removes them with `vault:remove-adaptor`.
+
+### Protocol fee harvesting
+
+`harvest_fee` is permissionless: any funded keypair can harvest, and it only
+pays the transaction fee plus rent for LP token accounts that do not exist yet.
+`protocol:harvest-fee` reads every vault, keeps those with a protocol
+performance or management fee configured, reads each vault's admin and manager
+and the protocol treasury live from chain, and sends **one transaction per
+vault** in the selected `--mode` (it needs no `--profile`; `--mode multisig`
+is not supported — sign with a keypair). A single harvest mints all three fee
+shares — admin, manager, and protocol — at once; that is how the instruction
+works. Vaults with harvesting disabled are skipped, a failing vault does not
+stop the others, and the command exits non-zero if any vault failed.
+
+```bash
+# 1. See what would be harvested (read-only — no keypair, ignores --mode):
+pnpm cli -- protocol:query:fee-vaults
+
+# 2. Build, then simulate, then send — one transaction per protocol-fee vault:
+pnpm cli -- --mode print    protocol:harvest-fee --admin-keypair /path/to/funded.json
+pnpm cli -- --mode simulate protocol:harvest-fee --admin-keypair /path/to/funded.json
+pnpm cli -- --mode execute  protocol:harvest-fee --admin-keypair /path/to/funded.json
+
+# Restrict either command to specific vaults (repeat --vault as needed):
+pnpm cli -- --mode execute protocol:harvest-fee --vault <VAULT_PUBKEY> --vault <VAULT_PUBKEY>
+
+# 3. Confirm the accrued protocol LP fees now read 0:
+pnpm cli -- protocol:query:fee-vaults
+```
 
 ### Deposit / withdraw (user)
 

@@ -144,6 +144,8 @@ test("--help lists the full vault command surface", async () => {
   for (const cmd of [
     "protocol:update-treasury",
     "protocol:set-pending-admin",
+    "protocol:query:fee-vaults",
+    "protocol:harvest-fee",
     "protocol:accept-admin",
     "vault:init",
     "vault:init-and-set-token-metadata",
@@ -1031,4 +1033,70 @@ test("`pnpm cli` resolves a repo-relative --profile from the repository root", a
     { cwd: REPO_ROOT, encoding: "utf8", timeout: 120000 }
   );
   assert.match(stdout, /usdc-mainnet-example/);
+});
+
+test("protocol:harvest-fee rejects --mode multisig before loading a keypair", async () => {
+  const { program } = harness();
+  await assert.rejects(
+    () =>
+      parse(program, [
+        "--mode",
+        "multisig",
+        "--multisig-address",
+        SYSTEM,
+        "protocol:harvest-fee",
+      ]),
+    /does not support --mode multisig/
+  );
+});
+
+test("protocol:harvest-fee rejects a malformed --vault address before loading a keypair", async () => {
+  const { program } = harness();
+  await assert.rejects(
+    () => parse(program, ["protocol:harvest-fee", "--vault", "not-an-address"]),
+    /--vault must be a valid base58 Solana address/
+  );
+});
+
+test("protocol:query:fee-vaults rejects a malformed --vault address", async () => {
+  const { program } = harness();
+  await assert.rejects(
+    () =>
+      parse(program, ["protocol:query:fee-vaults", "--vault", "not-an-address"]),
+    /--vault must be a valid base58 Solana address/
+  );
+});
+
+test("vault:harvest-fee rejects malformed --vault-admin and --treasury addresses", async () => {
+  await withTempProfile(VAULT_ONLY_PROFILE, async (profilePath) => {
+    const { program } = harness();
+    await assert.rejects(
+      () =>
+        parse(program, [
+          "--profile",
+          profilePath,
+          "vault:harvest-fee",
+          "--manager",
+          SYSTEM,
+          "--vault-admin",
+          "not-an-address",
+        ]),
+      /--vault-admin must be a valid base58 Solana address/
+    );
+    // Fresh program: commander keeps the first parse's option values.
+    const second = harness();
+    await assert.rejects(
+      () =>
+        parse(second.program, [
+          "--profile",
+          profilePath,
+          "vault:harvest-fee",
+          "--manager",
+          SYSTEM,
+          "--treasury",
+          "not-an-address",
+        ]),
+      /--treasury must be a valid base58 Solana address/
+    );
+  });
 });

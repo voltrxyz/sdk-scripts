@@ -114,7 +114,7 @@ prints this catalog live.
 | `src/vault/set-token-metadata.ts` | admin | Create LP token metadata for an initialized vault. |
 | `src/vault/update-config.ts` | admin | Update one vault configuration field. |
 | `src/vault/accept-admin.ts` | admin | Accept the pending-admin role for a vault. |
-| `src/vault/harvest-fee.ts` | admin | Harvest accrued vault fees into LP token accounts. |
+| `src/vault/harvest-fee.ts` | admin | Harvest one vault's accrued fees into the admin, manager, and treasury LP accounts. |
 | `src/vault/add-adaptor.ts` | admin | Register an adaptor program on a vault. |
 | `src/vault/remove-adaptor.ts` | admin | Deregister an adaptor program from a vault. |
 | `src/vault/update-adaptor-policy.ts` | admin (protocol) | Update a vault's adaptor policy. |
@@ -126,6 +126,8 @@ prints this catalog live.
 | `src/protocol/update-treasury.ts` | admin | Update the protocol treasury that receives harvested fees. |
 | `src/protocol/set-pending-admin.ts` | admin | Start a protocol-admin transfer. |
 | `src/protocol/accept-admin.ts` | admin | Complete a protocol-admin transfer as the incoming admin. |
+| `src/protocol/query-fee-vaults.ts` | read-only | List vaults with a protocol fee, their recipients, and accrued LP fees. |
+| `src/protocol/harvest-fee.ts` | admin (any funded keypair) | Harvest fees on every vault with a protocol fee, one transaction per vault. |
 
 ### Kamino
 

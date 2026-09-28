@@ -22,6 +22,8 @@ import {
   generateKeyPairSigner,
   parseVaultConfigField,
   processOperation,
+  PROTOCOL_TREASURY,
+  queryProtocolFeeVaults,
   queryStrategyPositions,
   queryVaultPosition,
   requireAssetMint,
@@ -51,7 +53,7 @@ import {
   type GlobalOptions,
 } from "../lib/globals.js";
 import { parseAddress, parseAmount, parseU16 } from "../lib/parse.js";
-import { loadRoleSigner } from "../lib/signers.js";
+import { addRoleKeypairOption, loadRoleSigner } from "../lib/signers.js";
 import { printJson, printLine } from "../lib/output.js";
 
 // --- flag coercion helpers ---
@@ -105,6 +107,17 @@ async function loadProtocolAdminSigner(
     );
   }
   return loadRoleSigner("admin", flagValue);
+}
+
+/** Commander accumulator for repeatable flags such as `--vault`. */
+function collectValue(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
+/** Parse repeatable `--vault` flags; an empty list means "no filter". */
+function parseVaultFilter(values: string[]): Address[] | undefined {
+  if (values.length === 0) return undefined;
+  return values.map((value) => parseAddress(value, "--vault"));
 }
 
 /** Coerce the `--value` flag for vault:update-config to the field's value type. */
@@ -550,43 +563,66 @@ function registerAdminVaultCommands(program: Command): void {
     .command("vault:harvest-fee")
     .summary("harvest accrued vault fees")
     .description(
-      "Harvest accrued fees into the vault admin, manager, and protocol treasury LP accounts. Signs as the vault admin (the harvester)."
+      "Harvest accrued fees into the vault admin, manager, and protocol treasury LP accounts. Harvest is permissionless: the signer is the harvester and only pays the transaction fee plus rent for any missing LP accounts. --manager, --vault-admin, and --treasury must match the vault and protocol accounts onchain (--vault-admin defaults to the signer, --treasury to the protocol treasury constant). protocol:harvest-fee reads them live and harvests every protocol-fee vault."
     )
     .option(
       "--admin-keypair <path>",
-      "admin keypair JSON path (or ADMIN_KEYPAIR env)"
+      "harvester keypair JSON path (or ADMIN_KEYPAIR env)"
     )
     .requiredOption(
       "--manager <address>",
       "vault manager address (receives the manager fee share)"
     )
-    .action(async (options: { adminKeypair?: string; manager: string }) => {
-      const command = "vault:harvest-fee";
+    .option(
+      "--vault-admin <address>",
+      "vault admin address (receives the admin fee share; defaults to the signer)"
+    )
+    .option(
+      "--treasury <address>",
+      "protocol treasury address (receives the protocol fee share; defaults to the protocol treasury constant)"
+    )
+    .action(
+      async (options: {
+        adminKeypair?: string;
+        manager: string;
+        vaultAdmin?: string;
+        treasury?: string;
+      }) => {
+        const command = "vault:harvest-fee";
 
-      const { globals, profile, ctx } = await loadCommandContext(program);
-      const vault = requireVaultAddress(profile, { command });
-      const lookupTableAddresses = resolveLookupTableAddresses(profile, {
-        command,
-      });
-      const manager = parseAddress(options.manager, "--manager");
-      const processorOptions = resolveProcessorOptions(globals);
-      const admin = await loadRoleSigner("admin", options.adminKeypair);
+        const { globals, profile, ctx } = await loadCommandContext(program);
+        const vault = requireVaultAddress(profile, { command });
+        const lookupTableAddresses = resolveLookupTableAddresses(profile, {
+          command,
+        });
+        const manager = parseAddress(options.manager, "--manager");
+        const vaultAdminOverride = options.vaultAdmin
+          ? parseAddress(options.vaultAdmin, "--vault-admin")
+          : undefined;
+        const protocolTreasury = options.treasury
+          ? parseAddress(options.treasury, "--treasury")
+          : PROTOCOL_TREASURY;
+        const processorOptions = resolveProcessorOptions(globals);
+        const harvester = await loadRoleSigner("admin", options.adminKeypair);
 
-      const operation = await buildHarvestFeeOperation(ctx, {
-        admin,
-        manager,
-        vault,
-        lookupTableAddresses,
-      });
+        const operation = await buildHarvestFeeOperation(ctx, {
+          harvester,
+          vaultAdmin: vaultAdminOverride ?? harvester.address,
+          manager,
+          protocolTreasury,
+          vault,
+          lookupTableAddresses,
+        });
 
-      await processOperation({
-        ctx,
-        payer: admin,
-        operation,
-        mode: globals.mode,
-        options: processorOptions,
-      });
-    });
+        await processOperation({
+          ctx,
+          payer: harvester,
+          operation,
+          mode: globals.mode,
+          options: processorOptions,
+        });
+      }
+    );
 }
 
 /** Protocol-admin operations: protocol config and vault-level policy overrides. */
@@ -696,6 +732,125 @@ function registerProtocolAdminCommands(program: Command): void {
         mode: globals.mode,
         options: processorOptions,
       });
+    });
+
+  program
+    .command("protocol:query:fee-vaults")
+    .summary("list vaults with a protocol fee as JSON")
+    .description(
+      "Read every vault and print those with a protocol performance or management fee configured — admin, manager, fee configuration, and accrued (unharvested) LP fees — together with the live protocol config. Read-only: ignores --mode and needs no keypair or --profile."
+    )
+    .option(
+      "--vault <address>",
+      "restrict to this vault (repeatable)",
+      collectValue,
+      [] as string[]
+    )
+    .action(async (options: { vault: string[] }) => {
+      const vaults = parseVaultFilter(options.vault);
+      const { ctx } = loadRpcCommandContext(program);
+
+      const snapshot = await queryProtocolFeeVaults(ctx, { vaults });
+      printJson(snapshot);
+    });
+
+  addRoleKeypairOption(
+    program
+      .command("protocol:harvest-fee")
+      .summary("harvest fees on every vault with a protocol fee")
+      .description(
+        "Harvest accrued fees on every vault that has a protocol performance or management fee configured: one transaction per vault, processed in the selected --mode. Harvest is permissionless, so the signer only pays transaction fees and rent for missing LP accounts. The vault admin, manager, and protocol treasury are read live from chain; each harvest also mints the admin and manager fee shares (that is how the instruction works). Does not read --profile; --mode multisig is not supported."
+      ),
+    "admin"
+  )
+    .option(
+      "--vault <address>",
+      "restrict to this vault (repeatable)",
+      collectValue,
+      [] as string[]
+    )
+    .action(async (options: { adminKeypair?: string; vault: string[] }) => {
+      const command = "protocol:harvest-fee";
+
+      const globals = program.opts<GlobalOptions>();
+      const processorOptions = resolveProcessorOptions(globals);
+      if (globals.mode === "multisig") {
+        throw new CliError(
+          `${command} does not support --mode multisig: harvest is permissionless, so sign with any funded keypair (--admin-keypair / ADMIN_KEYPAIR) and use --mode execute.`
+        );
+      }
+      const vaultFilter = parseVaultFilter(options.vault);
+      const { ctx } = loadRpcCommandContext(program);
+      const harvester = await loadRoleSigner("admin", options.adminKeypair);
+
+      const snapshot = await queryProtocolFeeVaults(ctx, {
+        vaults: vaultFilter,
+      });
+      if (!snapshot.protocol.harvestEnabled) {
+        throw new CliError(
+          `Harvesting is disabled at the protocol level (operationalState=${snapshot.protocol.operationalState}); nothing was sent.`
+        );
+      }
+
+      printLine(`protocol treasury: ${snapshot.protocol.treasury}`);
+      printLine(
+        `vaults with a protocol fee: ${snapshot.vaults.length} of ${snapshot.totalVaults}`
+      );
+      if (snapshot.vaults.length === 0) {
+        printLine("Nothing to harvest.");
+        return;
+      }
+
+      const total = snapshot.vaults.length;
+      const failures: string[] = [];
+      let processed = 0;
+      let skipped = 0;
+      for (const [index, feeVault] of snapshot.vaults.entries()) {
+        printLine(
+          `[${index + 1}/${total}] ${feeVault.name} ${feeVault.vault} admin=${feeVault.admin} manager=${feeVault.manager} accruedProtocolLp=${feeVault.accruedLpProtocolFees}`
+        );
+        if (feeVault.harvestDisabled) {
+          printLine("  skipped: harvest-fee is disabled on this vault");
+          skipped += 1;
+          continue;
+        }
+        try {
+          const operation = await buildHarvestFeeOperation(ctx, {
+            harvester,
+            vaultAdmin: feeVault.admin,
+            manager: feeVault.manager,
+            protocolTreasury: snapshot.protocol.treasury,
+            vault: feeVault.vault,
+          });
+          const result = await processOperation({
+            ctx,
+            payer: harvester,
+            operation,
+            mode: globals.mode,
+            options: processorOptions,
+          });
+          if (result.mode === "simulate" && result.simulation.err) {
+            throw new Error(
+              `simulation failed: ${JSON.stringify(result.simulation.err)}`
+            );
+          }
+          processed += 1;
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          printLine(`  failed: ${message}`);
+          failures.push(`${feeVault.name} (${feeVault.vault}): ${message}`);
+        }
+      }
+
+      printLine(
+        `${command}: processed ${processed}/${total} vault(s) in ${globals.mode} mode, ${skipped} skipped, ${failures.length} failed`
+      );
+      if (failures.length > 0) {
+        throw new CliError(
+          `${command} failed for ${failures.length} vault(s):\n  ${failures.join("\n  ")}`
+        );
+      }
     });
 
   program

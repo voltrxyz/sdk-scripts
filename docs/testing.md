@@ -123,6 +123,7 @@ Current coverage:
 | Amount parsing + env/context | `packages/core/src/env.test.ts`               |
 | Tx processor mode dispatch   | `packages/core/src/tx/processor.test.ts`      |
 | Vault builder output shape   | `packages/core/src/vault/operations.test.ts`  |
+| Protocol fee-vault queries   | `packages/core/src/vault/queries.test.ts`     |
 | CLI help/argument validation | `apps/cli/src/index.test.ts`                  |
 | Adapter builder smoke tests  | `packages/{kamino,spot,trustful}/src/operations/*.test.ts` |
 | Examples workspace (offline) | `examples/scripts/check.ts` + `examples/tsconfig.json` (`pnpm examples:check`) |

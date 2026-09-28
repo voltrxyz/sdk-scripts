@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  AccountRole,
   generateKeyPairSigner,
   type Address,
   type KeyPairSigner,
@@ -231,11 +232,14 @@ test("request-withdraw always emits the idempotent receipt ATA create", async ()
   );
 });
 
-test("harvest-fee sets up LP accounts for admin, manager, and protocol treasury", async () => {
-  const admin = await makeSigner();
+test("harvest-fee uses a distinct harvester and sets up every recipient LP account", async () => {
+  const harvester = await makeSigner();
+  const vaultAdmin = await makeVault();
   const manager = await makeVault();
   const vault = await makeVault();
-  const args = { admin, manager, vault };
+  const args = { harvester, vaultAdmin, manager, vault };
+
+  assert.notEqual(harvester.address, vaultAdmin);
 
   const missing = await buildHarvestFeeOperation(makeCtx(false), args);
   assertBuiltOperationShape(missing, {
@@ -244,14 +248,21 @@ test("harvest-fee sets up LP accounts for admin, manager, and protocol treasury"
   });
   // three create-ATA instructions (admin, manager, protocol treasury) + harvest
   assert.equal(missing.instructions.length, 4);
+  const harvestAccounts = missing.instructions.at(-1)?.accounts ?? [];
   assert.ok(
-    missing.instructions.some((instruction) =>
-      (instruction.accounts ?? []).some(
-        (account) => account.address === PROTOCOL_TREASURY
-      )
+    harvestAccounts.some(
+      (account) =>
+        account.address === harvester.address &&
+        account.role === AccountRole.READONLY_SIGNER
     ),
-    "expected the default protocol treasury among the harvest accounts"
+    "expected the harvester signer among the harvest accounts"
   );
+  for (const recipient of [vaultAdmin, manager, PROTOCOL_TREASURY]) {
+    assert.ok(
+      harvestAccounts.some((account) => account.address === recipient),
+      `expected ${recipient} among the harvest accounts`
+    );
+  }
 
   const existing = await buildHarvestFeeOperation(makeCtx(true), args);
   assertBuiltOperationShape(existing, {
@@ -268,6 +279,34 @@ test("harvest-fee sets up LP accounts for admin, manager, and protocol treasury"
           instruction.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS
       ).length,
     3
+  );
+});
+
+test("harvest-fee uses an explicit protocol treasury override", async () => {
+  const harvester = await makeSigner();
+  const vaultAdmin = await makeVault();
+  const manager = await makeVault();
+  const protocolTreasury = await makeVault();
+  const vault = await makeVault();
+
+  const operation = await buildHarvestFeeOperation(makeCtx(false), {
+    harvester,
+    vaultAdmin,
+    manager,
+    protocolTreasury,
+    vault,
+  });
+
+  const harvestAccounts = operation.instructions.at(-1)?.accounts ?? [];
+  assert.ok(
+    harvestAccounts.some((account) => account.address === protocolTreasury),
+    "expected the explicit protocol treasury among the harvest accounts"
+  );
+  assert.ok(
+    !harvestAccounts.some(
+      (account) => account.address === PROTOCOL_TREASURY
+    ),
+    "did not expect the default protocol treasury among the harvest accounts"
   );
 });
 

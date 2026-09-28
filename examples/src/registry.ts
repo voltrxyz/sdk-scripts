@@ -264,6 +264,28 @@ export const registry: RegistryEntry[] = [
     offline: true,
     load: () => import("./protocol/accept-admin.js"),
   },
+  {
+    name: "protocol:query-fee-vaults",
+    file: "examples/src/protocol/query-fee-vaults.ts",
+    group: "protocol",
+    role: "none",
+    network: "rpc-read",
+    summary: "List vaults with a protocol fee and their accrued fees.",
+    transactional: false,
+    offline: false,
+    load: () => import("./protocol/query-fee-vaults.js"),
+  },
+  {
+    name: "protocol:harvest-fee",
+    file: "examples/src/protocol/harvest-fee.ts",
+    group: "protocol",
+    role: "admin",
+    network: "rpc-read",
+    summary: "Harvest fees on every vault with a protocol fee, one tx per vault.",
+    transactional: true,
+    offline: false,
+    load: () => import("./protocol/harvest-fee.js"),
+  },
 
   // Kamino
   {

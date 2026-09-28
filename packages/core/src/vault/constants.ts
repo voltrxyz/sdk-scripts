@@ -9,7 +9,9 @@ export const NATIVE_MINT =
   "So11111111111111111111111111111111111111112" as Address;
 
 /**
- * Voltr protocol treasury. Receives the protocol cut of harvested vault fees.
+ * Mirrors `Protocol.treasury` on mainnet. The harvest instruction requires an
+ * exact match; `protocol:harvest-fee` reads the live value instead of relying
+ * on this constant.
  */
 export const PROTOCOL_TREASURY =
-  "vxyzZyfd6nJ3v82fTSmuRiKF4owWF9sAXqneu9mne9n" as Address;
+  "C7sE3MjSAqqF7TgXn1VsNQPWem1gdhqv3ZYV9TNfSjY9" as Address;
